@@ -36,27 +36,39 @@ def read_root():
 
 @app.post("/api/orders", response_model=schemas.OrderResponse)
 def create_order(order: schemas.OrderCreate, request: Request, db: Session = Depends(get_db)):
-    # 1. التحقق من رقم الهاتف لمنع الطلبات الوهمية
+    customer_name = order.customer_name.strip()
+    wilaya = order.wilaya.strip()
+    commune = order.commune.strip()
+
+    # 1. التحقق من البيانات الأساسية
+    if len(customer_name) < 3:
+        raise HTTPException(status_code=400, detail="الاسم واللقب مطلوب")
+    if not wilaya:
+        raise HTTPException(status_code=400, detail="الولاية مطلوبة")
+    if len(commune) < 2:
+        raise HTTPException(status_code=400, detail="البلدية مطلوبة")
+
+    # 2. التحقق من رقم الهاتف لمنع الطلبات الوهمية
     clean_phone = order.phone.replace(" ", "")
     if not clean_phone.startswith(("05", "06", "07")) or len(clean_phone) != 10:
         raise HTTPException(status_code=400, detail="رقم الهاتف غير صالح")
 
-    # 2. حساب نقاط الخطر (Risk Score)
+    # 3. حساب نقاط الخطر (Risk Score)
     risk_score = 0
     # إذا كان الرقم مكرر (مثال: 0555555555)
     if len(set(clean_phone)) <= 3:
         risk_score += 50
     # إذا كان الاسم قصير جداً
-    if len(order.customer_name) < 3:
-        risk_score += 30
+    if len(customer_name) < 5:
+        risk_score += 20
 
-    # 3. إنشاء الطلب في قاعدة البيانات
+    # 4. إنشاء الطلب في قاعدة البيانات
     db_order = models.Order(
         order_id=order.order_id,
-        customer_name=order.customer_name,
+        customer_name=customer_name,
         phone=clean_phone,
-        wilaya=order.wilaya,
-        commune=order.commune,
+        wilaya=wilaya,
+        commune=commune,
         product_name=order.product_name,
         quantity=order.quantity,
         total_price=order.total_price,
