@@ -74,7 +74,10 @@ def create_order(
         risk_score += 20
 
     delivery_label = "توصيل للمنزل" if delivery_type == "home" else "توصيل للمكتب"
-    notes = order.notes or delivery_label
+    notes = order.notes or ""
+
+    product_subtotal = order.unit_price * order.quantity
+    shipping_cost = max(0.0, order.total_price - product_subtotal)
 
     db_order = models.Order(
         order_id=order.order_id,
@@ -107,9 +110,12 @@ def create_order(
             "commune": db_order.commune,
             "product_name": db_order.product_name,
             "quantity": db_order.quantity,
+            "unit_price": order.unit_price,
+            "product_price": product_subtotal,
+            "shipping_cost": shipping_cost,
             "total_price": db_order.total_price,
             "delivery_type": db_order.delivery_type,
-            "notes": db_order.notes,
+            "notes": notes,
         },
     )
 

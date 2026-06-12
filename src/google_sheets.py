@@ -19,9 +19,27 @@ def get_webhook_url() -> Optional[str]:
     return url.strip()
 
 
+def _delivery_label(delivery_type: str) -> str:
+    if delivery_type in {"home", "منزل"}:
+        return "منزل"
+    if delivery_type in {"office", "مكتب"}:
+        return "مكتب"
+    return delivery_type or ""
+
+
 def build_sheet_payload(order: dict) -> dict:
+    quantity = int(order.get("quantity") or 1)
+    unit_price = float(order.get("unit_price") or 0)
+    product_price = float(order.get("product_price") or (unit_price * quantity))
+    total_price = float(order["total_price"])
+
+    shipping_cost = order.get("shipping_cost")
+    if shipping_cost is None:
+        shipping_cost = max(0.0, total_price - product_price)
+    else:
+        shipping_cost = float(shipping_cost)
+
     delivery_type = order.get("delivery_type") or "home"
-    delivery_label = "منزل" if delivery_type == "home" else "مكتب"
 
     return {
         "order_id": order["order_id"],
@@ -31,9 +49,12 @@ def build_sheet_payload(order: dict) -> dict:
         "wilaya": order["wilaya"],
         "commune": order["commune"],
         "product_name": order["product_name"],
-        "quantity": order["quantity"],
-        "total_price": order["total_price"],
-        "delivery_type": delivery_label,
+        "quantity": quantity,
+        "unit_price": unit_price,
+        "product_price": product_price,
+        "shipping_cost": shipping_cost,
+        "total_price": total_price,
+        "delivery_type": _delivery_label(str(delivery_type)),
         "status": "En attente",
         "tracking_number": "",
         "notes": order.get("notes") or "",
