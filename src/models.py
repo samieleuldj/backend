@@ -14,6 +14,7 @@ class Order(Base):
     delivery_type = Column(String(50), default="home")
     product_name = Column(String(255))
     quantity = Column(Integer, default=1)
+    unit_price = Column(Float, nullable=True)
     total_price = Column(Float)
     status = Column(String(50), default="Pending") # Pending, Confirmed, Shipped, Delivered, Returned
     notes = Column(Text, nullable=True)

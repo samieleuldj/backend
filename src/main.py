@@ -74,7 +74,7 @@ def create_order(
         risk_score += 20
 
     delivery_label = "توصيل للمنزل" if delivery_type == "home" else "توصيل للمكتب"
-    notes = order.notes or ""
+    notes = order.notes or delivery_label
 
     product_subtotal = order.unit_price * order.quantity
     shipping_cost = max(0.0, order.total_price - product_subtotal)
@@ -88,6 +88,7 @@ def create_order(
         delivery_type=delivery_type,
         product_name=order.product_name,
         quantity=order.quantity,
+        unit_price=order.unit_price,
         total_price=order.total_price,
         notes=notes,
         risk_score=risk_score,

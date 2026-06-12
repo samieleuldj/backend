@@ -17,3 +17,8 @@ def ensure_schema_updates() -> None:
                     "ALTER TABLE orders ADD COLUMN delivery_type VARCHAR(50) DEFAULT 'home'"
                 )
             )
+    if "unit_price" not in columns:
+        with engine.begin() as conn:
+            conn.execute(
+                text("ALTER TABLE orders ADD COLUMN unit_price DOUBLE NULL")
+            )
