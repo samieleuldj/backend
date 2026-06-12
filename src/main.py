@@ -1,18 +1,19 @@
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
 import os
 
 from . import models, schemas, database
 from .google_sheets import send_order_to_google_sheets
+from .anti_fraud import validate_order_security
+from .migrations import ensure_schema_updates
+from .phone_utils import normalize_algerian_phone
 
-# إنشاء الجداول في قاعدة البيانات
 models.Base.metadata.create_all(bind=database.engine)
+ensure_schema_updates()
 
 app = FastAPI(title="Confort DZ API")
 
-# إعداد CORS للسماح للفرونت إند بالاتصال
 origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://confortdz.shop").split(",")
 
 app.add_middleware(
@@ -23,7 +24,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Dependency لجلب جلسة قاعدة البيانات
 def get_db():
     db = database.SessionLocal()
     try:
@@ -45,8 +45,8 @@ def create_order(
     customer_name = order.customer_name.strip()
     wilaya = order.wilaya.strip()
     commune = order.commune.strip()
+    delivery_type = order.delivery_type.value
 
-    # 1. التحقق من البيانات الأساسية
     if len(customer_name) < 3:
         raise HTTPException(status_code=400, detail="الاسم واللقب مطلوب")
     if not wilaya:
@@ -54,35 +54,45 @@ def create_order(
     if len(commune) < 2:
         raise HTTPException(status_code=400, detail="البلدية مطلوبة")
 
-    # 2. التحقق من رقم الهاتف لمنع الطلبات الوهمية
-    clean_phone = order.phone.replace(" ", "")
+    clean_phone = normalize_algerian_phone(order.phone)
     if not clean_phone.startswith(("05", "06", "07")) or len(clean_phone) != 10:
         raise HTTPException(status_code=400, detail="رقم الهاتف غير صالح")
 
-    # 3. حساب نقاط الخطر (Risk Score)
+    validate_order_security(
+        request=request,
+        db=db,
+        phone=clean_phone,
+        quantity=order.quantity,
+        unit_price=order.unit_price,
+        delivery_type=delivery_type,
+    )
+
     risk_score = 0
-    # إذا كان الرقم مكرر (مثال: 0555555555)
     if len(set(clean_phone)) <= 3:
         risk_score += 50
-    # إذا كان الاسم قصير جداً
     if len(customer_name) < 5:
         risk_score += 20
 
-    # 4. إنشاء الطلب في قاعدة البيانات
+    delivery_label = "توصيل للمنزل" if delivery_type == "home" else "توصيل للمكتب"
+    notes = order.notes or delivery_label
+
     db_order = models.Order(
         order_id=order.order_id,
         customer_name=customer_name,
         phone=clean_phone,
         wilaya=wilaya,
         commune=commune,
+        delivery_type=delivery_type,
         product_name=order.product_name,
         quantity=order.quantity,
         total_price=order.total_price,
-        notes=order.notes,
+        notes=notes,
         risk_score=risk_score,
-        ip_address=request.client.host if request.client else None
+        ip_address=request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        if request.headers.get("x-forwarded-for")
+        else (request.client.host if request.client else None),
     )
-    
+
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
@@ -98,8 +108,9 @@ def create_order(
             "product_name": db_order.product_name,
             "quantity": db_order.quantity,
             "total_price": db_order.total_price,
+            "delivery_type": db_order.delivery_type,
             "notes": db_order.notes,
         },
     )
-    
+
     return db_order

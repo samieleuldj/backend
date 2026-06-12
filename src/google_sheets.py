@@ -5,6 +5,8 @@ from typing import Optional
 
 import httpx
 
+from .phone_utils import normalize_algerian_phone
+
 logger = logging.getLogger(__name__)
 
 ALGIERS_TZ = timezone(timedelta(hours=1))
@@ -18,17 +20,22 @@ def get_webhook_url() -> Optional[str]:
 
 
 def build_sheet_payload(order: dict) -> dict:
+    delivery_type = order.get("delivery_type") or "home"
+    delivery_label = "منزل" if delivery_type == "home" else "مكتب"
+
     return {
         "order_id": order["order_id"],
         "date": datetime.now(ALGIERS_TZ).strftime("%d/%m/%Y %H:%M:%S"),
         "customer_name": order["customer_name"],
-        "phone": order["phone"],
+        "phone": normalize_algerian_phone(order["phone"]),
         "wilaya": order["wilaya"],
         "commune": order["commune"],
         "product_name": order["product_name"],
         "quantity": order["quantity"],
         "total_price": order["total_price"],
-        "status": "Pending",
+        "delivery_type": delivery_label,
+        "status": "En attente",
+        "tracking_number": "",
         "notes": order.get("notes") or "",
     }
 

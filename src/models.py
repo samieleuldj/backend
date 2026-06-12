@@ -11,6 +11,7 @@ class Order(Base):
     phone = Column(String(20), index=True)
     wilaya = Column(String(100), index=True)
     commune = Column(String(150))
+    delivery_type = Column(String(50), default="home")
     product_name = Column(String(255))
     quantity = Column(Integer, default=1)
     total_price = Column(Float)
