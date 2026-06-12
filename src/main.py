@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 import os
 
 from . import models, schemas, database
+from .google_sheets import send_order_to_google_sheets
 
 # إنشاء الجداول في قاعدة البيانات
 models.Base.metadata.create_all(bind=database.engine)
@@ -35,7 +36,12 @@ def read_root():
     return {"status": "online", "message": "Confort DZ API is running"}
 
 @app.post("/api/orders", response_model=schemas.OrderResponse)
-def create_order(order: schemas.OrderCreate, request: Request, db: Session = Depends(get_db)):
+def create_order(
+    order: schemas.OrderCreate,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     customer_name = order.customer_name.strip()
     wilaya = order.wilaya.strip()
     commune = order.commune.strip()
@@ -80,5 +86,20 @@ def create_order(order: schemas.OrderCreate, request: Request, db: Session = Dep
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
+
+    background_tasks.add_task(
+        send_order_to_google_sheets,
+        {
+            "order_id": db_order.order_id,
+            "customer_name": db_order.customer_name,
+            "phone": db_order.phone,
+            "wilaya": db_order.wilaya,
+            "commune": db_order.commune,
+            "product_name": db_order.product_name,
+            "quantity": db_order.quantity,
+            "total_price": db_order.total_price,
+            "notes": db_order.notes,
+        },
+    )
     
     return db_order
