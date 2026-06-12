@@ -55,7 +55,7 @@ def build_sheet_payload(order: dict) -> dict:
         "shipping_cost": shipping_cost,
         "total_price": total_price,
         "delivery_type": _delivery_label(str(delivery_type)),
-        "status": "En attente",
+        "status": "في الانتظار",
         "tracking_number": "",
         "notes": order.get("notes") or "",
     }
