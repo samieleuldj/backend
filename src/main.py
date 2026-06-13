@@ -292,25 +292,22 @@ def create_order(
     db.commit()
     db.refresh(db_order)
 
-    # الشيت يتعبّى من Frontend (NEXT_PUBLIC_GOOGLE_SHEET_WEBHOOK_URL)
-    # فعّل GOOGLE_SHEET_FROM_BACKEND=true فقط إذا بغيت الإرسال من الباك إند
-    if os.getenv("GOOGLE_SHEET_FROM_BACKEND", "").lower() in {"1", "true", "yes"}:
-        send_order_to_google_sheets(
-            {
-                "order_id": db_order.order_id,
-                "customer_name": db_order.customer_name,
-                "phone": db_order.phone,
-                "wilaya": db_order.wilaya,
-                "commune": db_order.commune,
-                "product_name": db_order.product_name,
-                "quantity": db_order.quantity,
-                "unit_price": order.unit_price,
-                "product_price": product_subtotal,
-                "shipping_cost": shipping_cost,
-                "total_price": db_order.total_price,
-                "delivery_type": db_order.delivery_type,
-                "notes": notes or "",
-            },
-        )
+    send_order_to_google_sheets(
+        {
+            "order_id": db_order.order_id,
+            "customer_name": db_order.customer_name,
+            "phone": db_order.phone,
+            "wilaya": db_order.wilaya,
+            "commune": db_order.commune,
+            "product_name": db_order.product_name,
+            "quantity": db_order.quantity,
+            "unit_price": order.unit_price,
+            "product_price": product_subtotal,
+            "shipping_cost": shipping_cost,
+            "total_price": db_order.total_price,
+            "delivery_type": db_order.delivery_type,
+            "notes": notes or "",
+        },
+    )
 
     return db_order
