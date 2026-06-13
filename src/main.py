@@ -292,22 +292,25 @@ def create_order(
     db.commit()
     db.refresh(db_order)
 
-    send_order_to_google_sheets(
-        {
-            "order_id": db_order.order_id,
-            "customer_name": db_order.customer_name,
-            "phone": db_order.phone,
-            "wilaya": db_order.wilaya,
-            "commune": db_order.commune,
-            "product_name": db_order.product_name,
-            "quantity": db_order.quantity,
-            "unit_price": order.unit_price,
-            "product_price": product_subtotal,
-            "shipping_cost": shipping_cost,
-            "total_price": db_order.total_price,
-            "delivery_type": db_order.delivery_type,
-            "notes": notes or "",
-        },
-    )
+    sheet_payload = {
+        "order_id": db_order.order_id,
+        "customer_name": db_order.customer_name,
+        "phone": db_order.phone,
+        "wilaya": db_order.wilaya,
+        "commune": db_order.commune,
+        "product_name": db_order.product_name,
+        "quantity": db_order.quantity,
+        "unit_price": order.unit_price,
+        "product_price": product_subtotal,
+        "shipping_cost": shipping_cost,
+        "total_price": db_order.total_price,
+        "delivery_type": db_order.delivery_type,
+        "notes": notes or "",
+    }
+    threading.Thread(
+        target=send_order_to_google_sheets,
+        args=(sheet_payload,),
+        daemon=True,
+    ).start()
 
     return db_order

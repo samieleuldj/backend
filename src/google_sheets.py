@@ -67,7 +67,7 @@ def _post_google_script(url: str, payload: dict) -> httpx.Response:
     Re-POST the JSON body on each redirect (httpx defaults to GET on 302).
     """
     headers = {"Content-Type": "application/json"}
-    with httpx.Client(timeout=30.0) as client:
+    with httpx.Client(timeout=12.0) as client:
         current_url = url
         response = None
         for _ in range(5):

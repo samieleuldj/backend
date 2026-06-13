@@ -83,8 +83,12 @@ def record_analytics_event(
 
 def attach_ip_metadata_to_order(order: models.Order, request: Request) -> None:
     client_ip = get_client_ip(request)
-    ip_info = lookup_ip(client_ip)
     order.ip_address = client_ip
+    if not strict_ip_filter_enabled():
+        order.is_valid_traffic = True
+        return
+
+    ip_info = lookup_ip(client_ip)
     order.country_code = ip_info.country_code
     order.city = ip_info.city
     order.isp = ip_info.isp
