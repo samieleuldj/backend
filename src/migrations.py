@@ -74,3 +74,22 @@ def ensure_schema_updates() -> None:
                     """
                 )
             )
+
+    if "daily_ad_spend" not in tables:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE daily_ad_spend (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        spend_date DATE NOT NULL,
+                        platform VARCHAR(50) NOT NULL,
+                        amount_dzd DOUBLE DEFAULT 0,
+                        notes VARCHAR(500) NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_spend_date (spend_date),
+                        INDEX idx_platform (platform)
+                    )
+                    """
+                )
+            )

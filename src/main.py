@@ -82,6 +82,14 @@ def admin_dashboard_js():
     return FileResponse(js_path, media_type="application/javascript")
 
 
+@app.get("/admin/styles.css")
+def admin_dashboard_css():
+    css_path = ADMIN_DIR / "styles.css"
+    if not css_path.exists():
+        raise HTTPException(status_code=404, detail="Admin assets not found")
+    return FileResponse(css_path, media_type="text/css")
+
+
 @app.get("/admin")
 @app.get("/admin/")
 def admin_dashboard():

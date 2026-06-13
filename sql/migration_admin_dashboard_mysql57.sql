@@ -41,3 +41,14 @@ ALTER TABLE orders ADD COLUMN utm_medium VARCHAR(120) NULL;
 ALTER TABLE orders ADD COLUMN utm_campaign VARCHAR(120) NULL;
 ALTER TABLE orders ADD COLUMN referrer VARCHAR(500) NULL;
 ALTER TABLE orders ADD COLUMN session_id VARCHAR(64) NULL;
+
+CREATE TABLE IF NOT EXISTS daily_ad_spend (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  spend_date DATE NOT NULL,
+  platform VARCHAR(50) NOT NULL,
+  amount_dzd DOUBLE DEFAULT 0,
+  notes VARCHAR(500) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_spend_date (spend_date),
+  INDEX idx_platform (platform)
+);

@@ -3,552 +3,161 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Confort DZ Admin</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <title>Confort DZ — Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --bg: #0f172a;
-      --panel: #111827;
-      --card: #1f2937;
-      --card-soft: #243244;
-      --border: #334155;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --primary: #2563eb;
-      --primary-soft: rgba(37, 99, 235, 0.15);
-      --accent: #f59e0b;
-      --success: #10b981;
-      --danger: #ef4444;
-      --warning: #f97316;
-      --shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
-    }
-
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: 'Cairo', sans-serif;
-      background: linear-gradient(180deg, #0b1220 0%, #111827 100%);
-      color: var(--text);
-      min-height: 100vh;
-    }
-
-    .hidden { display: none !important; }
-
-    .login-wrap {
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-    }
-
-    .login-card {
-      width: min(420px, 100%);
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 24px;
-      padding: 32px;
-      box-shadow: var(--shadow);
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-
-    .brand-badge {
-      width: 52px;
-      height: 52px;
-      border-radius: 16px;
-      display: grid;
-      place-items: center;
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
-      font-weight: 800;
-    }
-
-    h1, h2, h3, p { margin: 0; }
-    .muted { color: var(--muted); }
-
-    label {
-      display: block;
-      font-size: 14px;
-      margin-bottom: 8px;
-      color: var(--muted);
-    }
-
-    input, select, button, textarea {
-      font: inherit;
-    }
-
-    input, select {
-      width: 100%;
-      background: var(--card);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px 14px;
-    }
-
-    .btn {
-      border: 0;
-      border-radius: 14px;
-      padding: 12px 18px;
-      cursor: pointer;
-      font-weight: 700;
-      transition: 0.2s ease;
-    }
-
-    .btn-primary {
-      background: var(--primary);
-      color: white;
-    }
-
-    .btn-primary:hover { filter: brightness(1.08); }
-
-    .btn-soft {
-      background: var(--card);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-
-    .btn-success { background: var(--success); color: white; }
-
-    .error {
-      color: #fecaca;
-      background: rgba(239, 68, 68, 0.12);
-      border: 1px solid rgba(239, 68, 68, 0.35);
-      padding: 10px 12px;
-      border-radius: 12px;
-      margin-top: 12px;
-      font-size: 14px;
-    }
-
-    .app-shell {
-      display: grid;
-      grid-template-columns: 260px 1fr;
-      min-height: 100vh;
-    }
-
-    .sidebar {
-      background: rgba(15, 23, 42, 0.95);
-      border-left: 1px solid var(--border);
-      padding: 24px 18px;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-    }
-
-    .nav-btn {
-      width: 100%;
-      text-align: right;
-      background: transparent;
-      color: var(--muted);
-      border: 0;
-      border-radius: 14px;
-      padding: 12px 14px;
-      margin-bottom: 8px;
-      cursor: pointer;
-      font-weight: 700;
-    }
-
-    .nav-btn.active {
-      background: var(--primary-soft);
-      color: white;
-    }
-
-    .main {
-      padding: 24px;
-    }
-
-    .topbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-
-    .filters {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: end;
-    }
-
-    .filters > div { min-width: 150px; }
-
-    .preset-group {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .preset {
-      background: var(--card);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 8px 14px;
-      cursor: pointer;
-      font-size: 13px;
-    }
-
-    .preset.active {
-      background: var(--primary);
-      border-color: var(--primary);
-    }
-
-    .grid {
-      display: grid;
-      gap: 16px;
-    }
-
-    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 20px;
-      box-shadow: var(--shadow);
-    }
-
-    .metric-label { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
-    .metric-value { font-size: 32px; font-weight: 800; }
-    .metric-sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
-
-    .section-title {
-      font-size: 20px;
-      font-weight: 800;
-      margin-bottom: 16px;
-    }
-
-    .funnel-step {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.15);
-    }
-
-    .bar-chart {
-      display: grid;
-      gap: 10px;
-    }
-
-    .bar-row {
-      display: grid;
-      grid-template-columns: 90px 1fr 70px;
-      gap: 10px;
-      align-items: center;
-      font-size: 13px;
-    }
-
-    .bar-track {
-      height: 10px;
-      background: rgba(148, 163, 184, 0.15);
-      border-radius: 999px;
-      overflow: hidden;
-    }
-
-    .bar-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #2563eb, #38bdf8);
-      border-radius: 999px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      padding: 14px 10px;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-      text-align: right;
-      font-size: 14px;
-    }
-
-    th { color: var(--muted); font-weight: 700; }
-
-    .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .status.pending { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
-    .status.confirmed { background: rgba(37, 99, 235, 0.15); color: #93c5fd; }
-    .status.shipped { background: rgba(14, 165, 233, 0.15); color: #7dd3fc; }
-    .status.delivered { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
-    .status.returned, .status.cancelled { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
-
-    .table-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
-    }
-
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(2, 6, 23, 0.72);
-      display: grid;
-      place-items: center;
-      padding: 20px;
-      z-index: 50;
-    }
-
-    .modal {
-      width: min(760px, 100%);
-      max-height: 90vh;
-      overflow: auto;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 24px;
-      box-shadow: var(--shadow);
-    }
-
-    .modal-header {
-      padding: 24px 24px 0;
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: start;
-    }
-
-    .modal-body { padding: 24px; }
-
-    .order-preview {
-      background: linear-gradient(135deg, rgba(37,99,235,0.18), rgba(245,158,11,0.12));
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: 20px;
-      padding: 20px;
-    }
-
-    .preview-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
-      margin-top: 18px;
-    }
-
-    .preview-item {
-      background: rgba(15, 23, 42, 0.45);
-      border: 1px solid rgba(148, 163, 184, 0.12);
-      border-radius: 16px;
-      padding: 14px;
-    }
-
-    .preview-item span {
-      display: block;
-      color: var(--muted);
-      font-size: 12px;
-      margin-bottom: 6px;
-    }
-
-    .preview-item strong {
-      font-size: 15px;
-      line-height: 1.5;
-    }
-
-    .preview-total {
-      margin-top: 18px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-top: 16px;
-      border-top: 1px dashed rgba(148, 163, 184, 0.25);
-    }
-
-    .preview-total strong {
-      font-size: 28px;
-      color: #fde68a;
-    }
-
-    .activity-list {
-      display: grid;
-      gap: 12px;
-    }
-
-    .activity-item {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 12px 0;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-      font-size: 14px;
-    }
-
-    @media (max-width: 1100px) {
-      .app-shell { grid-template-columns: 1fr; }
-      .sidebar {
-        position: static;
-        height: auto;
-        border-left: 0;
-        border-bottom: 1px solid var(--border);
-      }
-      .grid-4, .grid-2, .preview-grid { grid-template-columns: 1fr; }
-    }
-  </style>
+  <link rel="stylesheet" href="/admin/styles.css" />
 </head>
 <body>
   <div id="loginView" class="login-wrap">
     <div class="login-card">
       <div class="brand">
-        <div class="brand-badge">CD</div>
+        <div class="brand-logo">CD</div>
         <div>
-          <h1>Confort DZ Admin</h1>
+          <h1>Confort DZ</h1>
           <p class="muted">لوحة تحكم المتجر</p>
         </div>
       </div>
       <form id="loginForm">
-        <label for="username">اسم المستخدم</label>
-        <input id="username" name="username" autocomplete="username" required />
-        <div style="height:14px"></div>
-        <label for="password">كلمة المرور</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required />
-        <div style="height:18px"></div>
-        <button class="btn btn-primary" type="submit" style="width:100%">دخول</button>
+        <label>اسم المستخدم</label>
+        <input id="username" autocomplete="username" required />
+        <label>كلمة المرور</label>
+        <input id="password" type="password" autocomplete="current-password" required />
+        <button type="submit" class="btn btn-primary full">دخول</button>
         <div id="loginError" class="error hidden"></div>
       </form>
     </div>
   </div>
 
-  <div id="appView" class="app-shell hidden">
-    <aside class="sidebar">
-      <div class="brand" style="margin-bottom: 24px;">
-        <div class="brand-badge">CD</div>
+  <div id="appView" class="app hidden">
+    <header class="top-header">
+      <div class="brand-inline">
+        <div class="brand-logo sm">CD</div>
         <div>
-          <h2>Confort DZ</h2>
-          <p class="muted">Admin Dashboard</p>
+          <strong>Confort DZ</strong>
+          <span class="muted">COD Admin Dashboard</span>
         </div>
       </div>
-      <button class="nav-btn active" data-tab="overview">📊 نظرة عامة</button>
-      <button class="nav-btn" data-tab="orders">📦 الطلبيات</button>
-      <button class="nav-btn" data-tab="products">🛍️ المنتجات</button>
-      <button class="nav-btn" data-tab="wilayas">🗺️ الولايات</button>
-      <div style="height:24px"></div>
-      <button id="logoutBtn" class="btn btn-soft" style="width:100%">تسجيل الخروج</button>
-    </aside>
+      <div class="header-actions">
+        <input id="dateFrom" type="date" />
+        <input id="dateTo" type="date" />
+        <button id="applyFilters" class="btn btn-dark">Refresh</button>
+        <button id="logoutBtn" class="btn btn-soft">Logout</button>
+      </div>
+    </header>
 
-    <main class="main">
-      <div class="topbar">
+    <main class="container">
+      <div class="title-row">
         <div>
-          <h1 id="pageTitle">نظرة عامة</h1>
-          <p class="muted">إحصائيات من IPs جزائرية صالحة فقط (بدون VPN/Proxy)</p>
+          <h2 id="pageTitle">Overview</h2>
+          <p class="muted small">Metrics count valid Algeria traffic only (non-VPN).</p>
         </div>
-        <div class="filters">
-          <div>
-            <label for="dateFrom">من</label>
-            <input id="dateFrom" type="date" />
-          </div>
-          <div>
-            <label for="dateTo">إلى</label>
-            <input id="dateTo" type="date" />
-          </div>
-          <button id="applyFilters" class="btn btn-primary">تطبيق</button>
+        <div class="preset-group">
+          <button class="preset active" data-range="7">7 days</button>
+          <button class="preset" data-range="30">30 days</button>
+          <button class="preset" data-range="today">Today</button>
         </div>
       </div>
 
-      <div class="preset-group" style="margin-bottom: 20px;">
-        <button class="preset active" data-range="7">آخر 7 أيام</button>
-        <button class="preset" data-range="30">آخر 30 يوم</button>
-        <button class="preset" data-range="today">اليوم</button>
-      </div>
+      <nav class="tabs">
+        <button class="tab active" data-tab="overview">Overview</button>
+        <button class="tab" data-tab="orders">Orders</button>
+        <button class="tab" data-tab="accounting">Comptabilité</button>
+      </nav>
 
       <section id="tab-overview">
-        <div class="grid grid-4" style="margin-bottom: 20px;">
-          <div class="card"><div class="metric-label">زوار حقيقيون</div><div class="metric-value" id="mVisitors">0</div><div class="metric-sub">جزائر • بدون VPN</div></div>
-          <div class="card"><div class="metric-label">مشاهدات</div><div class="metric-value" id="mPageViews">0</div><div class="metric-sub">Page views</div></div>
-          <div class="card"><div class="metric-label">طلبيات</div><div class="metric-value" id="mOrders">0</div><div class="metric-sub" id="mConversion">CR 0%</div></div>
-          <div class="card"><div class="metric-label">الإيرادات</div><div class="metric-value" id="mRevenue">0 دج</div><div class="metric-sub" id="mAov">AOV 0 دج</div></div>
+        <div class="hero-card">
+          <div>
+            <div class="hero-label">Revenue (Delivered)</div>
+            <div class="hero-value" id="mDeliveredRevenue">0 دج</div>
+            <div class="hero-sub" id="mNetProfit">Net profit 0 دج</div>
+          </div>
+          <div class="hero-side">
+            <div><span>Ad Spend</span><strong id="mAdSpend">0 دج</strong></div>
+            <div><span>ROAS</span><strong id="mRoas">0</strong></div>
+          </div>
         </div>
 
-        <div class="grid grid-2" style="margin-bottom: 20px;">
+        <div class="metrics-grid" id="metricsGrid"></div>
+
+        <div class="grid-2">
           <div class="card">
-            <div class="section-title">Funnel</div>
-            <div id="funnelList"></div>
+            <h3>Daily Trend</h3>
+            <div id="dailyChart" class="bar-chart"></div>
           </div>
           <div class="card">
-            <div class="section-title">آخر النشاط</div>
-            <div id="activityList" class="activity-list"></div>
+            <h3>Channel Revenue</h3>
+            <div id="channelChart" class="bar-chart"></div>
           </div>
         </div>
 
         <div class="card">
-          <div class="section-title">الأداء اليومي</div>
-          <div id="dailyChart" class="bar-chart"></div>
+          <h3>Top Products</h3>
+          <table>
+            <thead><tr><th>Product</th><th>Clicks</th><th>Orders</th><th>Revenue</th></tr></thead>
+            <tbody id="productsTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>Daily P&amp;L Report</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th><th>Orders</th><th>Delivered Rev.</th><th>Ad Spend</th><th>Product Cost</th><th>Net Profit</th>
+              </tr>
+            </thead>
+            <tbody id="pnlTableBody"></tbody>
+          </table>
         </div>
       </section>
 
       <section id="tab-orders" class="hidden">
         <div class="card">
           <div class="table-actions">
-            <input id="orderSearch" placeholder="بحث: اسم، هاتف، رقم طلب..." />
-            <select id="orderStatus">
-              <option value="">كل الحالات</option>
-            </select>
-            <button id="reloadOrders" class="btn btn-soft">تحديث</button>
+            <input id="orderSearch" placeholder="Search name, phone, order id..." />
+            <select id="orderStatus"></select>
+            <button id="reloadOrders" class="btn btn-soft">Refresh</button>
           </div>
-          <div style="overflow:auto;">
-            <table>
-              <thead>
-                <tr>
-                  <th>الطلب</th>
-                  <th>الزبون</th>
-                  <th>المنتج</th>
-                  <th>الولاية</th>
-                  <th>المجموع</th>
-                  <th>الحالة</th>
-                  <th>التاريخ</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="ordersTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section id="tab-products" class="hidden">
-        <div class="card">
-          <div class="section-title">أداء المنتجات</div>
           <table>
             <thead>
-              <tr>
-                <th>المنتج</th>
-                <th>نقرات/مشاهدات</th>
-                <th>طلبيات</th>
-                <th>الإيرادات</th>
-              </tr>
+              <tr><th>Order</th><th>Customer</th><th>Product</th><th>Wilaya</th><th>Total</th><th>Status</th><th>Date</th><th></th></tr>
             </thead>
-            <tbody id="productsTableBody"></tbody>
+            <tbody id="ordersTableBody"></tbody>
           </table>
         </div>
       </section>
 
-      <section id="tab-wilayas" class="hidden">
+      <section id="tab-accounting" class="hidden">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Add Daily Ad Spend</h3>
+            <form id="adSpendForm" class="form-grid">
+              <div><label>Date</label><input id="adDate" type="date" required /></div>
+              <div><label>Platform</label>
+                <select id="adPlatform" required>
+                  <option value="meta">Meta (Facebook/Instagram)</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="snap">Snapchat</option>
+                  <option value="google">Google</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div><label>Amount (DZD)</label><input id="adAmount" type="number" min="1" step="1" required /></div>
+              <div class="full"><label>Notes</label><input id="adNotes" placeholder="Campaign name..." /></div>
+              <div class="full"><button class="btn btn-primary" type="submit">Save spend</button></div>
+            </form>
+            <p class="muted small">Enter daily ad spend from Ads Manager. Profit = Delivered revenue − product cost − ad spend.</p>
+          </div>
+          <div class="card">
+            <h3>Accounting Summary</h3>
+            <div id="accountingSummary" class="summary-list"></div>
+          </div>
+        </div>
         <div class="card">
-          <div class="section-title">أفضل الولايات</div>
+          <h3>Ad Spend Entries</h3>
           <table>
-            <thead>
-              <tr>
-                <th>الولاية</th>
-                <th>طلبيات</th>
-                <th>الإيرادات</th>
-              </tr>
-            </thead>
-            <tbody id="wilayasTableBody"></tbody>
+            <thead><tr><th>Date</th><th>Platform</th><th>Amount</th><th>Notes</th><th></th></tr></thead>
+            <tbody id="adSpendTableBody"></tbody>
           </table>
         </div>
       </section>
@@ -556,22 +165,15 @@
   </div>
 
   <div id="orderModal" class="modal-backdrop hidden">
-    <div class="modal">
+    <div class="modal card">
       <div class="modal-header">
-        <div>
-          <h2 id="modalTitle">معاينة الطلب</h2>
-          <p class="muted" id="modalSubtitle"></p>
-        </div>
-        <button id="closeModal" class="btn btn-soft">إغلاق</button>
+        <div><h3 id="modalTitle">Order</h3><p class="muted" id="modalSubtitle"></p></div>
+        <button id="closeModal" class="btn btn-soft">Close</button>
       </div>
-      <div class="modal-body">
-        <div class="order-preview" id="orderPreview"></div>
-        <div style="height:18px"></div>
-        <label for="modalStatus">تحديث الحالة</label>
-        <div style="display:flex; gap:10px; margin-top:8px;">
-          <select id="modalStatus"></select>
-          <button id="saveStatusBtn" class="btn btn-success">حفظ</button>
-        </div>
+      <div id="orderPreview" class="order-preview"></div>
+      <div class="modal-footer">
+        <select id="modalStatus"></select>
+        <button id="saveStatusBtn" class="btn btn-primary">Update status</button>
       </div>
     </div>
   </div>

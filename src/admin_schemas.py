@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -17,6 +17,24 @@ class AdminLoginResponse(BaseModel):
 
 class OrderStatusUpdate(BaseModel):
     status: str = Field(min_length=2, max_length=50)
+
+
+class AdSpendCreate(BaseModel):
+    spend_date: date
+    platform: str = Field(min_length=2, max_length=50)
+    amount_dzd: float = Field(gt=0)
+    notes: Optional[str] = None
+
+
+class AdSpendEntry(BaseModel):
+    id: int
+    spend_date: date
+    platform: str
+    amount_dzd: float
+    notes: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 
 class AdminOrderSummary(BaseModel):

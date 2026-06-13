@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from . import models
 from .anti_fraud import get_client_ip
-from .ip_validation import lookup_ip
+from .accounting_service import enrich_metrics
 
 
 def _parse_datetime(value: Optional[str], *, end_of_day: bool = False) -> datetime:
@@ -187,7 +187,7 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         if event.event_type == "product_view" and event.product_name:
             product_clicks[event.product_name] = product_clicks.get(event.product_name, 0) + 1
 
-    return {
+    result = {
         "from": start.date().isoformat(),
         "to": end.date().isoformat(),
         "page_views": page_views,
@@ -228,6 +228,7 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         )[:15],
         "recent_activity": _recent_activity(db, start, end),
     }
+    return enrich_metrics(db, result, start, end, orders)
 
 
 def _recent_activity(db: Session, start: datetime, end: datetime) -> list[dict]:

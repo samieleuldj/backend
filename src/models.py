@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, Integer, String, Text
 from sqlalchemy.sql import func
 
 from .database import Base
@@ -38,6 +38,17 @@ class Order(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class DailyAdSpend(Base):
+    __tablename__ = "daily_ad_spend"
+
+    id = Column(Integer, primary_key=True, index=True)
+    spend_date = Column(Date, index=True)
+    platform = Column(String(50), index=True)
+    amount_dzd = Column(Float, default=0)
+    notes = Column(String(500), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class AnalyticsEvent(Base):

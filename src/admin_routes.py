@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from . import models
 from .admin_auth import authenticate_admin, verify_admin_token
 from .admin_schemas import (
+    AdSpendCreate,
+    AdSpendEntry,
     AdminLoginRequest,
     AdminLoginResponse,
     AdminOrderDetail,
@@ -13,6 +15,7 @@ from .admin_schemas import (
     OrderStatusUpdate,
 )
 from .analytics_service import default_date_range, get_metrics, valid_order_filter
+from .order_status import ALL_STATUSES
 from .database import SessionLocal
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -128,11 +131,55 @@ def admin_update_order_status(
 def admin_statuses(
     _: str = Depends(verify_admin_token),
 ):
-    return [
-        "Pending",
-        "Confirmed",
-        "Shipped",
-        "Delivered",
-        "Returned",
-        "Cancelled",
-    ]
+    return ALL_STATUSES
+
+
+@router.get("/ad-spend", response_model=list[AdSpendEntry])
+def list_ad_spend(
+    date_from: Optional[str] = Query(None, alias="from"),
+    date_to: Optional[str] = Query(None, alias="to"),
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_admin_token),
+):
+    start, end = default_date_range(date_from, date_to)
+    return (
+        db.query(models.DailyAdSpend)
+        .filter(
+            models.DailyAdSpend.spend_date >= start.date(),
+            models.DailyAdSpend.spend_date <= end.date(),
+        )
+        .order_by(models.DailyAdSpend.spend_date.desc())
+        .all()
+    )
+
+
+@router.post("/ad-spend", response_model=AdSpendEntry)
+def create_ad_spend(
+    payload: AdSpendCreate,
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_admin_token),
+):
+    row = models.DailyAdSpend(
+        spend_date=payload.spend_date,
+        platform=payload.platform.strip().lower(),
+        amount_dzd=payload.amount_dzd,
+        notes=(payload.notes or "")[:500] or None,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.delete("/ad-spend/{entry_id}")
+def delete_ad_spend(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_admin_token),
+):
+    row = db.query(models.DailyAdSpend).filter(models.DailyAdSpend.id == entry_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Ad spend entry not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
