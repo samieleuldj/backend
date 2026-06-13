@@ -133,12 +133,17 @@ def create_dhd_parcel(order: dict[str, Any]) -> dict[str, Any]:
     if not phone:
         raise ValueError("رقم الهاتف مطلوب")
 
+    from .commune_resolver import resolve_commune_for_dhd
+
+    raw_commune = str(order.get("commune") or "")
+    dhd_commune = resolve_commune_for_dhd(raw_commune, wilaya_code)
+
     payload = {
         "reference": str(order.get("order_id") or ""),
         "nom_client": str(order.get("customer_name") or ""),
         "telephone": phone,
-        "adresse": f"{order.get('commune', '')}, {order.get('wilaya', '')}".strip(", "),
-        "commune": str(order.get("commune") or ""),
+        "adresse": f"{dhd_commune}, {order.get('wilaya', '')}".strip(", "),
+        "commune": dhd_commune,
         "code_wilaya": wilaya_code,
         "montant": int(float(order.get("total_price") or 0)),
         "produit": str(order.get("product_name") or ""),
