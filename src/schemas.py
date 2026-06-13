@@ -21,7 +21,23 @@ class OrderBase(BaseModel):
     notes: Optional[str] = None
 
 class OrderCreate(OrderBase):
-    pass
+    utm_source: Optional[str] = None
+    utm_medium: Optional[str] = None
+    utm_campaign: Optional[str] = None
+    referrer: Optional[str] = None
+    session_id: Optional[str] = None
+
+
+class AnalyticsEventCreate(BaseModel):
+    event_type: str
+    session_id: str = Field(min_length=8, max_length=64)
+    page_path: Optional[str] = None
+    product_id: Optional[str] = None
+    product_name: Optional[str] = None
+    referrer: Optional[str] = None
+    utm_source: Optional[str] = None
+    utm_medium: Optional[str] = None
+    utm_campaign: Optional[str] = None
 
 class OrderResponse(OrderBase):
     id: int
@@ -31,3 +47,15 @@ class OrderResponse(OrderBase):
 
     class Config:
         from_attributes = True
+
+
+class ShipToDhdRequest(BaseModel):
+    order_id: str
+    customer_name: str
+    phone: str
+    wilaya: str
+    commune: str
+    product_name: str
+    total_price: float
+    delivery_type: str = "منزل"
+    notes: Optional[str] = ""

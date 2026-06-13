@@ -61,21 +61,76 @@ def build_sheet_payload(order: dict) -> dict:
     }
 
 
-def send_order_to_google_sheets(order: dict) -> None:
+def _post_google_script(url: str, payload: dict) -> httpx.Response:
+    """
+    Google Apps Script web apps return 302 redirects.
+    Re-POST the JSON body on each redirect (httpx defaults to GET on 302).
+    """
+    headers = {"Content-Type": "application/json"}
+    with httpx.Client(timeout=30.0) as client:
+        current_url = url
+        response = None
+        for _ in range(5):
+            response = client.post(
+                current_url,
+                json=payload,
+                headers=headers,
+                follow_redirects=False,
+            )
+            if response.status_code not in {301, 302, 303, 307, 308}:
+                break
+            redirect_url = response.headers.get("location")
+            if not redirect_url:
+                break
+            current_url = redirect_url
+        if response is None:
+            raise RuntimeError("Google Sheets webhook: no response")
+        return response
+
+
+def send_order_to_google_sheets(order: dict) -> bool:
     url = get_webhook_url()
     if not url:
-        return
+        logger.warning(
+            "SHEETS SKIP order=%s reason=GOOGLE_SHEET_WEBHOOK_URL missing",
+            order.get("order_id"),
+        )
+        return False
 
     payload = build_sheet_payload(order)
 
     try:
-        with httpx.Client(timeout=15.0, follow_redirects=True) as client:
-            response = client.post(url, json=payload)
-            if response.status_code >= 400:
-                logger.error(
-                    "Google Sheets webhook failed: status=%s body=%s",
-                    response.status_code,
-                    response.text[:500],
+        response = _post_google_script(url, payload)
+        body = response.text[:500]
+
+        if response.status_code >= 400:
+            logger.warning(
+                "SHEETS FAIL order=%s status=%s body=%s",
+                order.get("order_id"),
+                response.status_code,
+                body,
+            )
+            return False
+
+        try:
+            data = response.json()
+            if data.get("result") == "error" or data.get("success") is False:
+                logger.warning(
+                    "SHEETS FAIL order=%s apps_script_error=%s",
+                    order.get("order_id"),
+                    body,
                 )
+                return False
+        except ValueError:
+            pass
+
+        logger.warning(
+            "SHEETS OK order=%s status=%s body=%s",
+            order.get("order_id"),
+            response.status_code,
+            body[:200],
+        )
+        return True
     except Exception:
-        logger.exception("Google Sheets webhook error for order %s", order.get("order_id"))
+        logger.exception("SHEETS ERROR order=%s", order.get("order_id"))
+        return False

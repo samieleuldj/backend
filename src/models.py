@@ -1,6 +1,8 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.sql import func
+
 from .database import Base
+
 
 class Order(Base):
     __tablename__ = "orders"
@@ -12,16 +14,51 @@ class Order(Base):
     wilaya = Column(String(100), index=True)
     commune = Column(String(150))
     delivery_type = Column(String(50), default="home")
-    product_name = Column(String(255))
+    product_name = Column(String(255), index=True)
     quantity = Column(Integer, default=1)
     unit_price = Column(Float, nullable=True)
     total_price = Column(Float)
-    status = Column(String(50), default="Pending") # Pending, Confirmed, Shipped, Delivered, Returned
+    status = Column(String(50), default="Pending", index=True)
     notes = Column(Text, nullable=True)
-    
-    # أنظمة الحماية
+
     risk_score = Column(Integer, default=0)
     ip_address = Column(String(45), nullable=True)
-    
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    country_code = Column(String(8), nullable=True)
+    city = Column(String(120), nullable=True)
+    isp = Column(String(255), nullable=True)
+    is_proxy = Column(Boolean, default=False)
+    is_hosting = Column(Boolean, default=False)
+    is_valid_traffic = Column(Boolean, default=True, index=True)
+
+    utm_source = Column(String(120), nullable=True)
+    utm_medium = Column(String(120), nullable=True)
+    utm_campaign = Column(String(120), nullable=True)
+    referrer = Column(String(500), nullable=True)
+    session_id = Column(String(64), nullable=True, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class AnalyticsEvent(Base):
+    __tablename__ = "analytics_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String(50), index=True)
+    session_id = Column(String(64), index=True)
+    page_path = Column(String(500), nullable=True)
+    product_id = Column(String(120), nullable=True, index=True)
+    product_name = Column(String(255), nullable=True)
+    referrer = Column(String(500), nullable=True)
+    utm_source = Column(String(120), nullable=True)
+    utm_medium = Column(String(120), nullable=True)
+    utm_campaign = Column(String(120), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    country_code = Column(String(8), nullable=True)
+    city = Column(String(120), nullable=True)
+    isp = Column(String(255), nullable=True)
+    is_proxy = Column(Boolean, default=False)
+    is_hosting = Column(Boolean, default=False)
+    is_valid = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
