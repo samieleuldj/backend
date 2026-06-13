@@ -13,9 +13,11 @@ class OrderBase(BaseModel):
     phone: str
     wilaya: str
     commune: str
+    product_id: Optional[str] = None
     product_name: str
     quantity: int = Field(ge=1, le=4)
     unit_price: float = Field(gt=0)
+    shipping_cost: Optional[float] = Field(default=None, ge=0)
     total_price: float
     delivery_type: DeliveryType
     notes: Optional[str] = None
@@ -59,3 +61,9 @@ class ShipToDhdRequest(BaseModel):
     total_price: float
     delivery_type: str = "منزل"
     notes: Optional[str] = ""
+
+
+class OrderSyncRequest(BaseModel):
+    order_id: str
+    status: Optional[str] = None
+    tracking_number: Optional[str] = None

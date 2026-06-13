@@ -32,6 +32,21 @@ class AdSpendEntry(BaseModel):
     platform: str
     amount_dzd: float
     notes: Optional[str] = None
+    source: Optional[str] = "manual"
+
+    class Config:
+        from_attributes = True
+
+
+class ProductCostUpdate(BaseModel):
+    purchase_cost_dzd: float = Field(ge=0)
+
+
+class ProductCostEntry(BaseModel):
+    id: int
+    product_id: str
+    product_name: str
+    purchase_cost_dzd: float
 
     class Config:
         from_attributes = True
@@ -48,6 +63,7 @@ class AdminOrderSummary(BaseModel):
     quantity: int
     total_price: float
     status: str
+    tracking_number: Optional[str] = None
     risk_score: int
     is_valid_traffic: Optional[bool] = True
     created_at: datetime

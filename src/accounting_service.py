@@ -12,13 +12,11 @@ from .order_status import (
     is_delivered,
     is_pending,
 )
+from .product_cost_service import get_cogs_ratio_fallback, order_product_cost
 
 
 def get_cogs_ratio() -> float:
-    try:
-        return float(os.getenv("DEFAULT_COGS_RATIO", "0.55"))
-    except ValueError:
-        return 0.55
+    return get_cogs_ratio_fallback()
 
 
 def _order_revenue(order: models.Order) -> float:
@@ -65,13 +63,15 @@ def _get_ad_spend_rows(db: Session, start: datetime, end: datetime) -> list[mode
 
 
 def _accounting_summary(
+    db: Session,
     orders: list[models.Order],
     ad_rows: list[models.DailyAdSpend],
 ) -> dict:
     cogs_ratio = get_cogs_ratio()
     order_stats = _summarize_orders(orders)
+    delivered = [o for o in orders if is_active_order(o.status) and is_delivered(o.status)]
     delivered_revenue = order_stats["revenue_delivered"]
-    product_cost = round(delivered_revenue * cogs_ratio, 2)
+    product_cost = round(sum(order_product_cost(db, order) for order in delivered), 2)
     gross_profit = round(delivered_revenue - product_cost, 2)
     ad_spend_total = round(sum(float(row.amount_dzd or 0) for row in ad_rows), 2)
     net_profit = round(gross_profit - ad_spend_total, 2)
@@ -96,7 +96,7 @@ def enrich_metrics(
     orders: list[models.Order],
 ) -> dict:
     ad_rows = _get_ad_spend_rows(db, start, end)
-    accounting = _accounting_summary(orders, ad_rows)
+    accounting = _accounting_summary(db, orders, ad_rows)
     cogs_ratio = accounting["cogs_ratio"]
 
     daily_ad: dict[str, float] = {}
@@ -118,7 +118,10 @@ def enrich_metrics(
         delivered_rev = sum(_order_revenue(o) for o in day_orders if is_delivered(o.status))
         total_rev = sum(_order_revenue(o) for o in day_orders)
         spend = round(daily_ad.get(day, 0), 2)
-        cost = round(delivered_rev * cogs_ratio, 2)
+        cost = round(
+            sum(order_product_cost(db, o) for o in day_orders if is_delivered(o.status)),
+            2,
+        )
         gross = round(delivered_rev - cost, 2)
         net = round(gross - spend, 2)
         daily_pnl.append(
@@ -184,6 +187,7 @@ def enrich_metrics(
                     "platform": row.platform,
                     "amount_dzd": float(row.amount_dzd or 0),
                     "notes": row.notes,
+                    "source": row.source or "manual",
                 }
                 for row in ad_rows
             ],

@@ -33,6 +33,9 @@ def ensure_schema_updates() -> None:
             "utm_campaign": "ALTER TABLE orders ADD COLUMN utm_campaign VARCHAR(120) NULL",
             "referrer": "ALTER TABLE orders ADD COLUMN referrer VARCHAR(500) NULL",
             "session_id": "ALTER TABLE orders ADD COLUMN session_id VARCHAR(64) NULL",
+            "product_id": "ALTER TABLE orders ADD COLUMN product_id VARCHAR(120) NULL",
+            "tracking_number": "ALTER TABLE orders ADD COLUMN tracking_number VARCHAR(120) NULL",
+            "shipping_cost": "ALTER TABLE orders ADD COLUMN shipping_cost DOUBLE NULL",
         }
         existing = {col["name"] for col in inspector.get_columns("orders")}
         for column, ddl in order_columns.items():
@@ -86,9 +89,35 @@ def ensure_schema_updates() -> None:
                         platform VARCHAR(50) NOT NULL,
                         amount_dzd DOUBLE DEFAULT 0,
                         notes VARCHAR(500) NULL,
+                        source VARCHAR(20) DEFAULT 'manual',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         INDEX idx_spend_date (spend_date),
-                        INDEX idx_platform (platform)
+                        INDEX idx_platform (platform),
+                        INDEX idx_source (source)
+                    )
+                    """
+                )
+            )
+    else:
+        _add_column_if_missing(
+            "daily_ad_spend",
+            "source",
+            "ALTER TABLE daily_ad_spend ADD COLUMN source VARCHAR(20) DEFAULT 'manual'",
+        )
+
+    if "product_costs" not in tables:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE product_costs (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        product_id VARCHAR(120) NOT NULL UNIQUE,
+                        product_name VARCHAR(255) NOT NULL,
+                        purchase_cost_dzd DOUBLE DEFAULT 0,
+                        updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_product_id (product_id)
                     )
                     """
                 )

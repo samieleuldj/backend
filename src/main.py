@@ -1,5 +1,7 @@
 import logging
 import os
+import threading
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, Depends, HTTPException, Request
@@ -15,6 +17,8 @@ from .google_sheets import get_webhook_url, send_order_to_google_sheets
 from .dhd import create_dhd_parcel
 from .migrations import ensure_schema_updates
 from .phone_utils import normalize_algerian_phone
+from .product_cost_service import ensure_default_products
+from .sync_service import run_auto_sync, sync_order_from_sheet
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,6 +48,27 @@ def get_db():
     finally:
         db.close()
 
+
+def _verify_internal_secret(request: Request) -> None:
+    secret = (os.getenv("SHEETS_SHIP_SECRET") or "").strip()
+    if not secret or request.headers.get("X-Ship-Secret") != secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
+def _auto_sync_loop() -> None:
+    interval_minutes = max(15, int(os.getenv("SYNC_INTERVAL_MINUTES", "60")))
+    while True:
+        time.sleep(interval_minutes * 60)
+        db = database.SessionLocal()
+        try:
+            result = run_auto_sync(db)
+            logger.info("Auto sync finished: %s", result)
+        except Exception:
+            logger.exception("Auto sync failed")
+        finally:
+            db.close()
+
+
 @app.on_event("startup")
 def log_startup_config():
     webhook = get_webhook_url()
@@ -51,6 +76,16 @@ def log_startup_config():
         logger.warning("SHEETS webhook configured: %s...", webhook[:60])
     else:
         logger.warning("SHEETS webhook NOT configured — set GOOGLE_SHEET_WEBHOOK_URL")
+
+    db = database.SessionLocal()
+    try:
+        ensure_default_products(db)
+    finally:
+        db.close()
+
+    if os.getenv("AUTO_SYNC_ENABLED", "true").lower() in {"1", "true", "yes"}:
+        threading.Thread(target=_auto_sync_loop, daemon=True).start()
+        logger.info("Auto sync scheduler started")
 
 
 @app.get("/")
@@ -66,11 +101,21 @@ def health_check():
         (os.getenv("ADMIN_USERNAME") or "").strip()
         and (os.getenv("ADMIN_PASSWORD") or "").strip()
     )
+    meta_ready = bool(
+        (os.getenv("META_AD_ACCOUNT_ID") or "").strip()
+        and (
+            (os.getenv("META_ADS_ACCESS_TOKEN") or "").strip()
+            or (os.getenv("META_ACCESS_TOKEN") or "").strip()
+        )
+    )
     return {
         "status": "ok",
         "sheets_webhook_configured": bool(webhook),
         "dhd_configured": dhd_token,
         "admin_configured": admin_ready,
+        "meta_ads_configured": meta_ready,
+        "auto_sync_enabled": os.getenv("AUTO_SYNC_ENABLED", "true").lower()
+        in {"1", "true", "yes"},
     }
 
 
@@ -126,16 +171,54 @@ def track_analytics_event(
 
 
 @app.post("/api/internal/ship-to-dhd")
-def ship_to_dhd(payload: schemas.ShipToDhdRequest, request: Request):
-    secret = (os.getenv("SHEETS_SHIP_SECRET") or "").strip()
-    if not secret or request.headers.get("X-Ship-Secret") != secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
+def ship_to_dhd(
+    payload: schemas.ShipToDhdRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _verify_internal_secret(request)
 
     try:
         result = create_dhd_parcel(payload.model_dump())
-        return {"success": True, "tracking": result.get("tracking")}
+        tracking = result.get("tracking")
+        order = (
+            db.query(models.Order)
+            .filter(models.Order.order_id == payload.order_id)
+            .first()
+        )
+        if order:
+            if tracking:
+                order.tracking_number = str(tracking)
+            order.status = "تم الشحن"
+            db.commit()
+        return {"success": True, "tracking": tracking}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/internal/order-sync")
+def sync_order_from_sheet_endpoint(
+    payload: schemas.OrderSyncRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _verify_internal_secret(request)
+
+    order = sync_order_from_sheet(
+        db,
+        order_id=payload.order_id,
+        status=payload.status,
+        tracking_number=payload.tracking_number,
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return {"success": True, "order_id": order.order_id, "status": order.status}
+
+
+@app.post("/api/internal/run-sync")
+def run_sync_endpoint(request: Request, db: Session = Depends(get_db)):
+    _verify_internal_secret(request)
+    return run_auto_sync(db)
 
 
 @app.post("/api/orders", response_model=schemas.OrderResponse)
@@ -187,9 +270,11 @@ def create_order(
         wilaya=wilaya,
         commune=commune,
         delivery_type=delivery_type,
+        product_id=(order.product_id or "")[:120] or None,
         product_name=order.product_name,
         quantity=order.quantity,
         unit_price=order.unit_price,
+        shipping_cost=shipping_cost if shipping_cost > 0 else None,
         total_price=order.total_price,
         notes=notes,
         risk_score=risk_score,

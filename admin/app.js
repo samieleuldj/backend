@@ -1,7 +1,7 @@
 const API = window.location.origin;
 const TOKEN_KEY = 'confortdz_admin_token';
 
-const state = { token: localStorage.getItem(TOKEN_KEY) || '', metrics: null, orders: [], statuses: [], selectedOrderId: null };
+const state = { token: localStorage.getItem(TOKEN_KEY) || '', metrics: null, orders: [], statuses: [], products: [], selectedOrderId: null };
 
 const $ = (id) => document.getElementById(id);
 
@@ -68,6 +68,32 @@ async function loadStatuses() {
 async function loadMetrics() {
   state.metrics = await api(`/api/admin/metrics?${queryRange()}`);
   renderOverview();
+}
+
+async function loadProducts() {
+  state.products = await api('/api/admin/products');
+  renderProducts();
+}
+
+function renderProducts() {
+  $('productCostsBody').innerHTML = state.products.map((p) => `
+    <tr>
+      <td><strong>${p.product_name}</strong><div class="muted small">${p.product_id}</div></td>
+      <td><input type="number" min="0" step="1" value="${p.purchase_cost_dzd || 0}" data-product-id="${p.product_id}" class="cost-input" /></td>
+      <td><button class="btn btn-primary" data-save-product="${p.product_id}">Save</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="3">No products</td></tr>';
+
+  $('productCostsBody').querySelectorAll('[data-save-product]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const input = $('productCostsBody').querySelector(`input[data-product-id="${btn.dataset.saveProduct}"]`);
+      await api(`/api/admin/products/${btn.dataset.saveProduct}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ purchase_cost_dzd: Number(input.value || 0) }),
+      });
+      await loadMetrics();
+    });
+  });
 }
 
 async function loadOrders() {
@@ -159,10 +185,11 @@ function renderAccounting() {
   $('adSpendTableBody').innerHTML = (m?.ad_spend_entries || []).map((row) => `
     <tr>
       <td>${row.spend_date}</td><td>${row.platform}</td><td>${money(row.amount_dzd)}</td>
+      <td>${row.source || 'manual'}</td>
       <td>${row.notes || '—'}</td>
-      <td><button class="btn btn-soft" data-delete-ad="${row.id}">Delete</button></td>
+      <td>${row.source === 'auto' ? '—' : `<button class="btn btn-soft" data-delete-ad="${row.id}">Delete</button>`}</td>
     </tr>
-  `).join('') || '<tr><td colspan="5">No ad spend yet — add from form above</td></tr>';
+  `).join('') || '<tr><td colspan="6">No ad spend yet — Meta syncs automatically when configured</td></tr>';
 
   $('adSpendTableBody').querySelectorAll('[data-delete-ad]').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -205,6 +232,7 @@ async function openOrder(orderId) {
       <div class="preview-item"><span>Source</span><strong>${o.utm_source || 'direct'}</strong></div>
       <div class="preview-item"><span>IP / City</span><strong>${o.ip_address || '—'}<br>${o.city || '—'}</strong></div>
       <div class="preview-item"><span>Status</span><strong>${o.status}</strong></div>
+      <div class="preview-item"><span>DHD Tracking</span><strong dir="ltr">${o.tracking_number || '—'}</strong></div>
     </div>
   `;
   $('orderModal').classList.remove('hidden');
@@ -215,7 +243,8 @@ function switchTab(tab) {
   $('tab-overview').classList.toggle('hidden', tab !== 'overview');
   $('tab-orders').classList.toggle('hidden', tab !== 'orders');
   $('tab-accounting').classList.toggle('hidden', tab !== 'accounting');
-  const titles = { overview: 'Overview', orders: 'Orders', accounting: 'Comptabilité' };
+  $('tab-products').classList.toggle('hidden', tab !== 'products');
+  const titles = { overview: 'Overview', orders: 'Orders', accounting: 'Comptabilité', products: 'Product Costs' };
   $('pageTitle').textContent = titles[tab] || 'Admin';
 }
 
@@ -223,7 +252,7 @@ async function bootstrap() {
   setRangeDays(7);
   $('adDate').value = new Date().toISOString().slice(0, 10);
   await loadStatuses();
-  await Promise.all([loadMetrics(), loadOrders()]);
+  await Promise.all([loadMetrics(), loadOrders(), loadProducts()]);
 }
 
 $('loginForm').addEventListener('submit', async (e) => {
@@ -274,6 +303,21 @@ $('adSpendForm').addEventListener('submit', async (e) => {
   $('adAmount').value = '';
   $('adNotes').value = '';
   await loadMetrics();
+});
+
+$('runSyncBtn').addEventListener('click', async () => {
+  $('runSyncBtn').disabled = true;
+  $('runSyncBtn').textContent = 'Syncing...';
+  try {
+    const result = await api('/api/admin/sync/run', { method: 'POST' });
+    alert(`Sync OK\nMeta: ${result.meta?.synced || 0} days\nDHD: ${result.dhd?.updated || 0} orders updated`);
+    await loadMetrics();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    $('runSyncBtn').disabled = false;
+    $('runSyncBtn').textContent = 'Sync now';
+  }
 });
 
 if (state.token) { showApp(); bootstrap().catch(logout); }

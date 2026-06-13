@@ -49,7 +49,7 @@
       <div class="title-row">
         <div>
           <h2 id="pageTitle">Overview</h2>
-          <p class="muted small">Metrics count valid Algeria traffic only (non-VPN).</p>
+          <p class="muted small">Metrics count valid Algeria traffic only (non-VPN). Status &amp; delivery sync automatically from Google Sheet + DHD.</p>
         </div>
         <div class="preset-group">
           <button class="preset active" data-range="7">7 days</button>
@@ -62,6 +62,7 @@
         <button class="tab active" data-tab="overview">Overview</button>
         <button class="tab" data-tab="orders">Orders</button>
         <button class="tab" data-tab="accounting">Comptabilité</button>
+        <button class="tab" data-tab="products">Product Costs</button>
       </nav>
 
       <section id="tab-overview">
@@ -128,9 +129,16 @@
       </section>
 
       <section id="tab-accounting" class="hidden">
+        <div class="card table-actions">
+          <div>
+            <h3>Auto Sync</h3>
+            <p class="muted small">Meta ad spend + DHD delivery status — runs every hour automatically.</p>
+          </div>
+          <button id="runSyncBtn" class="btn btn-dark">Sync now</button>
+        </div>
         <div class="grid-2">
           <div class="card">
-            <h3>Add Daily Ad Spend</h3>
+            <h3>Manual Ad Spend (optional)</h3>
             <form id="adSpendForm" class="form-grid">
               <div><label>Date</label><input id="adDate" type="date" required /></div>
               <div><label>Platform</label>
@@ -146,7 +154,7 @@
               <div class="full"><label>Notes</label><input id="adNotes" placeholder="Campaign name..." /></div>
               <div class="full"><button class="btn btn-primary" type="submit">Save spend</button></div>
             </form>
-            <p class="muted small">Enter daily ad spend from Ads Manager. Profit = Delivered revenue − product cost − ad spend.</p>
+            <p class="muted small">Meta spend syncs automatically if META_AD_ACCOUNT_ID is configured. Use manual only for TikTok/Snap.</p>
           </div>
           <div class="card">
             <h3>Accounting Summary</h3>
@@ -156,8 +164,19 @@
         <div class="card">
           <h3>Ad Spend Entries</h3>
           <table>
-            <thead><tr><th>Date</th><th>Platform</th><th>Amount</th><th>Notes</th><th></th></tr></thead>
+            <thead><tr><th>Date</th><th>Platform</th><th>Amount</th><th>Source</th><th>Notes</th><th></th></tr></thead>
             <tbody id="adSpendTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-products" class="hidden">
+        <div class="card">
+          <h3>Product Purchase Costs</h3>
+          <p class="muted small">Enter once how much you buy each product for (wholesale). Profit uses this automatically — no daily input needed.</p>
+          <table>
+            <thead><tr><th>Product</th><th>Purchase cost (DZD)</th><th></th></tr></thead>
+            <tbody id="productCostsBody"></tbody>
           </table>
         </div>
       </section>

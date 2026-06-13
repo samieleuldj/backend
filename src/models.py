@@ -14,8 +14,11 @@ class Order(Base):
     wilaya = Column(String(100), index=True)
     commune = Column(String(150))
     delivery_type = Column(String(50), default="home")
+    product_id = Column(String(120), nullable=True, index=True)
     product_name = Column(String(255), index=True)
     quantity = Column(Integer, default=1)
+    tracking_number = Column(String(120), nullable=True, index=True)
+    shipping_cost = Column(Float, nullable=True)
     unit_price = Column(Float, nullable=True)
     total_price = Column(Float)
     status = Column(String(50), default="Pending", index=True)
@@ -40,6 +43,17 @@ class Order(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
+class ProductCost(Base):
+    __tablename__ = "product_costs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(String(120), unique=True, index=True)
+    product_name = Column(String(255), nullable=False)
+    purchase_cost_dzd = Column(Float, default=0)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class DailyAdSpend(Base):
     __tablename__ = "daily_ad_spend"
 
@@ -48,6 +62,7 @@ class DailyAdSpend(Base):
     platform = Column(String(50), index=True)
     amount_dzd = Column(Float, default=0)
     notes = Column(String(500), nullable=True)
+    source = Column(String(20), default="manual", index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -13,9 +13,13 @@ from .admin_schemas import (
     AdminOrderDetail,
     AdminOrderSummary,
     OrderStatusUpdate,
+    ProductCostEntry,
+    ProductCostUpdate,
 )
 from .analytics_service import default_date_range, get_metrics, valid_order_filter
 from .order_status import ALL_STATUSES
+from .product_cost_service import ensure_default_products
+from .sync_service import run_auto_sync
 from .database import SessionLocal
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -164,6 +168,7 @@ def create_ad_spend(
         platform=payload.platform.strip().lower(),
         amount_dzd=payload.amount_dzd,
         notes=(payload.notes or "")[:500] or None,
+        source="manual",
     )
     db.add(row)
     db.commit()
@@ -183,3 +188,46 @@ def delete_ad_spend(
     db.delete(row)
     db.commit()
     return {"ok": True}
+
+
+@router.get("/products", response_model=list[ProductCostEntry])
+def list_product_costs(
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_admin_token),
+):
+    ensure_default_products(db)
+    return (
+        db.query(models.ProductCost)
+        .order_by(models.ProductCost.product_name.asc())
+        .all()
+    )
+
+
+@router.patch("/products/{product_id}", response_model=ProductCostEntry)
+def update_product_cost(
+    product_id: str,
+    payload: ProductCostUpdate,
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_admin_token),
+):
+    ensure_default_products(db)
+    row = (
+        db.query(models.ProductCost)
+        .filter(models.ProductCost.product_id == product_id.strip())
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    row.purchase_cost_dzd = round(payload.purchase_cost_dzd, 2)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.post("/sync/run")
+def admin_run_sync(
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_admin_token),
+):
+    return run_auto_sync(db)

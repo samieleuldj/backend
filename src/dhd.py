@@ -100,3 +100,83 @@ def create_dhd_parcel(order: dict[str, Any]) -> dict[str, Any]:
         logger.warning("DHD parcel created without tracking for %s: %s", order.get("order_id"), data)
 
     return {"tracking": tracking, "response": data}
+
+
+def _dhd_request(path: str, params: dict | None = None) -> dict[str, Any]:
+    token, base_url = get_dhd_config()
+    if not token:
+        raise ValueError("DHD_API_TOKEN غير مضبوط")
+
+    url = f"{base_url}{path}"
+    with httpx.Client(timeout=30.0) as client:
+        response = client.get(
+            url,
+            params=params,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    try:
+        data = response.json()
+    except Exception as exc:
+        raise ValueError(f"رد DHD غير صالح: {response.text[:200]}") from exc
+
+    if response.status_code >= 400:
+        message = data.get("message") or response.text[:200]
+        raise ValueError(f"DHD HTTP {response.status_code}: {message}")
+
+    return data if isinstance(data, dict) else {"data": data}
+
+
+def get_dhd_order_status(tracking: str) -> dict[str, Any]:
+    tracking = (tracking or "").strip()
+    if not tracking:
+        raise ValueError("رقم التتبع مطلوب")
+
+    attempts = [
+        ("/api/v1/get/order", {"tracking": tracking}),
+        ("/api/v1/get/order", {"tracking_number": tracking}),
+        (f"/api/v1/get/order/{tracking}", None),
+        (f"/api/v1/order/{tracking}", None),
+        ("/api/v1/get/orders", {"tracking": tracking}),
+    ]
+
+    last_error = "لا يوجد رد من DHD"
+    for path, params in attempts:
+        try:
+            data = _dhd_request(path, params)
+            if data.get("success") is False:
+                last_error = str(data.get("message") or "DHD error")
+                continue
+            payload = data.get("data") if isinstance(data.get("data"), dict) else data
+            if payload:
+                return payload
+        except ValueError as exc:
+            last_error = str(exc)
+
+    raise ValueError(last_error)
+
+
+def map_dhd_status(raw: dict[str, Any]) -> str | None:
+    for key in ("status", "statut", "etat", "state", "situation", "last_status"):
+        value = raw.get(key)
+        if value is None and isinstance(raw.get("data"), dict):
+            value = raw["data"].get(key)
+        if value is None:
+            continue
+
+        text = str(value).strip().lower()
+        if not text:
+            continue
+
+        if any(word in text for word in ("livré", "livre", "delivered", "تسليم")):
+            return "تم التسليم"
+        if any(word in text for word in ("retour", "return", "مرتج")):
+            return "مرتجع"
+        if any(word in text for word in ("annul", "cancel", "ملغ")):
+            return "ملغى"
+        if any(word in text for word in ("livraison", "transit", "expédi", "expedi", "shipp", "شحن")):
+            return "تم الشحن"
+        if any(word in text for word in ("confirm", "مؤك")):
+            return "مؤكd"
+
+    return None
