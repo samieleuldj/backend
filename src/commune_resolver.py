@@ -113,7 +113,7 @@ def _dhd_get_json(path: str, params: dict | None = None) -> dict[str, Any] | lis
     headers = {"Authorization": f"Bearer {token}"}
     url = f"{base_url}{path}"
 
-    with httpx.Client(timeout=30.0) as client:
+    with httpx.Client(timeout=15.0) as client:
         response = None
         for _ in range(5):
             response = client.get(url, headers=headers, params=params, follow_redirects=False)

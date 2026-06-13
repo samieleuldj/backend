@@ -86,7 +86,7 @@ def _dhd_request(
         headers["Content-Type"] = "application/json"
 
     url = f"{base_url}{path}"
-    with httpx.Client(timeout=30.0) as client:
+    with httpx.Client(timeout=15.0) as client:
         response = None
         for _ in range(5):
             if method == "POST":
