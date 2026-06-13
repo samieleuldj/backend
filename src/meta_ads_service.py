@@ -23,7 +23,7 @@ def _meta_config() -> tuple[str, str, float]:
         account_id = f"act_{account_id}"
 
     try:
-        usd_to_dzd = float(os.getenv("USD_TO_DZD", "135"))
+        usd_to_dzd = float(os.getenv("USD_TO_DZD", "141.18"))
     except ValueError:
         usd_to_dzd = 135.0
 

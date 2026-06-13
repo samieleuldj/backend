@@ -6,12 +6,22 @@ from sqlalchemy.orm import Session
 from . import models
 
 
+# Cellulite launch — purchase 3600 DZD ($25.50 USD), sell 6499 DZD
+CELLULITE_PURCHASE_DZD = 3600.0
+CELLULITE_PURCHASE_USD = 25.50
+CELLULITE_SELL_DZD = 6499.0
+USD_TO_DZD_FROM_PURCHASE = round(CELLULITE_PURCHASE_DZD / CELLULITE_PURCHASE_USD, 2)  # 141.18
+
 DEFAULT_PRODUCTS = [
     {"product_id": "cellulite-device", "product_name": "جهاز إزالة السيلوليت والترهلات"},
     {"product_id": "lumbar-belt", "product_name": "حزام دعم قطني للظهر"},
     {"product_id": "car-cushion", "product_name": "وسادة مقعد السيارة"},
     {"product_id": "orthopedic-pillow", "product_name": "وسادة طبية"},
 ]
+
+LAUNCH_PURCHASE_COSTS = {
+    "cellulite-device": CELLULITE_PURCHASE_DZD,
+}
 
 
 def get_cogs_ratio_fallback() -> float:
@@ -23,19 +33,22 @@ def get_cogs_ratio_fallback() -> float:
 
 def ensure_default_products(db: Session) -> None:
     for item in DEFAULT_PRODUCTS:
-        exists = (
+        launch_cost = LAUNCH_PURCHASE_COSTS.get(item["product_id"], 0)
+        row = (
             db.query(models.ProductCost)
             .filter(models.ProductCost.product_id == item["product_id"])
             .first()
         )
-        if not exists:
+        if not row:
             db.add(
                 models.ProductCost(
                     product_id=item["product_id"],
                     product_name=item["product_name"],
-                    purchase_cost_dzd=0,
+                    purchase_cost_dzd=launch_cost,
                 )
             )
+        elif launch_cost and float(row.purchase_cost_dzd or 0) == 0:
+            row.purchase_cost_dzd = launch_cost
     db.commit()
 
 

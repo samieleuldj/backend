@@ -48,7 +48,24 @@ CREATE TABLE IF NOT EXISTS daily_ad_spend (
   platform VARCHAR(50) NOT NULL,
   amount_dzd DOUBLE DEFAULT 0,
   notes VARCHAR(500) NULL,
+  source VARCHAR(20) DEFAULT 'manual',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_spend_date (spend_date),
-  INDEX idx_platform (platform)
+  INDEX idx_platform (platform),
+  INDEX idx_source (source)
 );
+
+CREATE TABLE IF NOT EXISTS product_costs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  product_id VARCHAR(120) NOT NULL UNIQUE,
+  product_name VARCHAR(255) NOT NULL,
+  purchase_cost_dzd DOUBLE DEFAULT 0,
+  updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_product_id (product_id)
+);
+
+-- Cellulite launch: purchase 3600 DZD, sell 6499 DZD ($25.50 USD)
+INSERT INTO product_costs (product_id, product_name, purchase_cost_dzd)
+VALUES ('cellulite-device', 'جهاز إزالة السيلوليت والترهلات', 3600)
+ON DUPLICATE KEY UPDATE purchase_cost_dzd = 3600, product_name = VALUES(product_name);
