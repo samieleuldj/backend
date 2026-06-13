@@ -19,7 +19,7 @@ def is_pending(status: str | None) -> bool:
 
 def is_confirmed(status: str | None) -> bool:
     s = _norm(status)
-    return s in CONFIRMED or s in SHIPPED or s in DELIVERED
+    return s in CONFIRMED
 
 
 def is_shipped(status: str | None) -> bool:
