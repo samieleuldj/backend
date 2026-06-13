@@ -2,12 +2,15 @@ import logging
 import os
 import re
 from typing import Any
+from urllib.parse import urljoin
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
 WILAYA_CODE_RE = re.compile(r"^(\d{1,2})")
+DEFAULT_DHD_API_URL = "https://platform.dhd-dz.com"
+LEGACY_DHD_API_URL = "https://dhd.ecotrack.dz"
 
 
 def extract_wilaya_code(wilaya: str) -> int:
@@ -28,7 +31,9 @@ def normalize_phone_for_dhd(phone: str) -> str:
 
 def get_dhd_config() -> tuple[str, str]:
     token = (os.getenv("DHD_API_TOKEN") or "").strip()
-    base_url = (os.getenv("DHD_API_URL") or "https://dhd.ecotrack.dz").rstrip("/")
+    base_url = (os.getenv("DHD_API_URL") or DEFAULT_DHD_API_URL).rstrip("/")
+    if base_url.rstrip("/") == LEGACY_DHD_API_URL:
+        base_url = DEFAULT_DHD_API_URL
     return token, base_url
 
 
@@ -48,11 +53,75 @@ def extract_tracking(response: dict[str, Any]) -> str | None:
     return None
 
 
-def create_dhd_parcel(order: dict[str, Any]) -> dict[str, Any]:
+def _resolve_redirect_url(current_url: str, response: httpx.Response) -> str | None:
+    location = response.headers.get("location") or response.headers.get("Location")
+    if not location:
+        return None
+    return urljoin(current_url, location)
+
+
+def _parse_json_response(response: httpx.Response) -> dict[str, Any]:
+    try:
+        data = response.json()
+    except Exception as exc:
+        raise ValueError(f"رد DHD غير صالح: {response.text[:200]}") from exc
+    if not isinstance(data, dict):
+        return {"data": data}
+    return data
+
+
+def _dhd_request(
+    method: str,
+    path: str,
+    *,
+    json_payload: dict | None = None,
+    params: dict | None = None,
+) -> tuple[httpx.Response, dict[str, Any]]:
     token, base_url = get_dhd_config()
     if not token:
         raise ValueError("DHD_API_TOKEN غير مضبوط في EasyPanel")
 
+    headers = {"Authorization": f"Bearer {token}"}
+    if json_payload is not None:
+        headers["Content-Type"] = "application/json"
+
+    url = f"{base_url}{path}"
+    with httpx.Client(timeout=30.0) as client:
+        response = None
+        for _ in range(5):
+            if method == "POST":
+                response = client.post(
+                    url,
+                    json=json_payload,
+                    headers=headers,
+                    params=params,
+                    follow_redirects=False,
+                )
+            else:
+                response = client.get(
+                    url,
+                    headers=headers,
+                    params=params,
+                    follow_redirects=False,
+                )
+
+            if response.status_code not in {301, 302, 303, 307, 308}:
+                break
+
+            next_url = _resolve_redirect_url(url, response)
+            if not next_url or next_url == url:
+                break
+            logger.info("DHD redirect %s -> %s", url, next_url)
+            url = next_url.rstrip("/")
+
+        if response is None:
+            raise ValueError("لا يوجد رد من DHD")
+
+    data = _parse_json_response(response)
+    return response, data
+
+
+def create_dhd_parcel(order: dict[str, Any]) -> dict[str, Any]:
     wilaya_code = extract_wilaya_code(str(order.get("wilaya", "")))
     if wilaya_code < 1 or wilaya_code > 58:
         raise ValueError("كود الولاية غير صالح")
@@ -78,18 +147,7 @@ def create_dhd_parcel(order: dict[str, Any]) -> dict[str, Any]:
         "remarque": str(order.get("notes") or ""),
     }
 
-    url = f"{base_url}/api/v1/create/order"
-    with httpx.Client(timeout=30.0) as client:
-        response = client.post(
-            url,
-            json=payload,
-            headers={"Authorization": f"Bearer {token}"},
-        )
-
-    try:
-        data = response.json()
-    except Exception as exc:
-        raise ValueError(f"رد DHD غير صالح: {response.text[:200]}") from exc
+    response, data = _dhd_request("POST", "/api/v1/create/order", json_payload=payload)
 
     if response.status_code >= 400 or data.get("success") is False:
         message = data.get("message") or response.text[:200]
@@ -100,31 +158,6 @@ def create_dhd_parcel(order: dict[str, Any]) -> dict[str, Any]:
         logger.warning("DHD parcel created without tracking for %s: %s", order.get("order_id"), data)
 
     return {"tracking": tracking, "response": data}
-
-
-def _dhd_request(path: str, params: dict | None = None) -> dict[str, Any]:
-    token, base_url = get_dhd_config()
-    if not token:
-        raise ValueError("DHD_API_TOKEN غير مضبوط")
-
-    url = f"{base_url}{path}"
-    with httpx.Client(timeout=30.0) as client:
-        response = client.get(
-            url,
-            params=params,
-            headers={"Authorization": f"Bearer {token}"},
-        )
-
-    try:
-        data = response.json()
-    except Exception as exc:
-        raise ValueError(f"رد DHD غير صالح: {response.text[:200]}") from exc
-
-    if response.status_code >= 400:
-        message = data.get("message") or response.text[:200]
-        raise ValueError(f"DHD HTTP {response.status_code}: {message}")
-
-    return data if isinstance(data, dict) else {"data": data}
 
 
 def get_dhd_order_status(tracking: str) -> dict[str, Any]:
@@ -143,9 +176,9 @@ def get_dhd_order_status(tracking: str) -> dict[str, Any]:
     last_error = "لا يوجد رد من DHD"
     for path, params in attempts:
         try:
-            data = _dhd_request(path, params)
-            if data.get("success") is False:
-                last_error = str(data.get("message") or "DHD error")
+            response, data = _dhd_request("GET", path, params=params)
+            if response.status_code >= 400 or data.get("success") is False:
+                last_error = str(data.get("message") or response.text[:200])
                 continue
             payload = data.get("data") if isinstance(data.get("data"), dict) else data
             if payload:
