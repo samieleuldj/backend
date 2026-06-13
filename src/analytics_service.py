@@ -1,12 +1,18 @@
-from datetime import datetime, timedelta, timezone
+import os
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import Request
 from sqlalchemy.orm import Session
 
 from . import models
-from .anti_fraud import get_client_ip
 from .accounting_service import enrich_metrics
+from .anti_fraud import get_client_ip
+from .ip_validation import lookup_ip
+
+
+def strict_ip_filter_enabled() -> bool:
+    return os.getenv("ANALYTICS_STRICT_IP_FILTER", "false").lower() in {"1", "true", "yes"}
 
 
 def _parse_datetime(value: Optional[str], *, end_of_day: bool = False) -> datetime:
@@ -67,7 +73,7 @@ def record_analytics_event(
         isp=ip_info.isp,
         is_proxy=ip_info.is_proxy,
         is_hosting=ip_info.is_hosting,
-        is_valid=ip_info.is_valid,
+        is_valid=ip_info.is_valid if strict_ip_filter_enabled() else True,
     )
     db.add(event)
     db.commit()
@@ -84,17 +90,18 @@ def attach_ip_metadata_to_order(order: models.Order, request: Request) -> None:
     order.isp = ip_info.isp
     order.is_proxy = ip_info.is_proxy
     order.is_hosting = ip_info.is_hosting
-    order.is_valid_traffic = ip_info.is_valid
+    order.is_valid_traffic = ip_info.is_valid if strict_ip_filter_enabled() else True
 
 
 def valid_order_filter():
-    return (
-        (models.Order.is_valid_traffic.is_(True))
-        | (models.Order.is_valid_traffic.is_(None))
-    )
+    if not strict_ip_filter_enabled():
+        return True
+    return (models.Order.is_valid_traffic.is_(True)) | (models.Order.is_valid_traffic.is_(None))
 
 
 def valid_event_filter():
+    if not strict_ip_filter_enabled():
+        return True
     return models.AnalyticsEvent.is_valid.is_(True)
 
 
@@ -164,16 +171,35 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
             }
         )
 
+    product_clicks: dict[str, int] = {}
+    product_views_by_id: dict[str, int] = {}
+    product_views_by_name: dict[str, int] = {}
+    for event in events:
+        if event.event_type != "product_view":
+            continue
+        if event.product_id:
+            product_views_by_id[event.product_id] = product_views_by_id.get(event.product_id, 0) + 1
+        if event.product_name:
+            product_clicks[event.product_name] = product_clicks.get(event.product_name, 0) + 1
+            product_views_by_name[event.product_name] = product_views_by_name.get(event.product_name, 0) + 1
+
     by_product: dict[str, dict] = {}
     for order in orders:
-        key = order.product_name or "Unknown"
+        key = order.product_id or order.product_name or "Unknown"
+        label = order.product_name or key
         item = by_product.setdefault(
             key,
-            {"product_name": key, "orders": 0, "revenue": 0, "quantity": 0},
+            {
+                "product_id": order.product_id or "",
+                "product_name": label,
+                "orders": 0,
+                "revenue": 0,
+                "quantity": 0,
+            },
         )
         item["orders"] += 1
         item["revenue"] += order.total_price
-        item["quantity"] += order.quantity
+        item["quantity"] += order.quantity or 1
 
     by_wilaya: dict[str, dict] = {}
     for order in orders:
@@ -182,14 +208,10 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         item["orders"] += 1
         item["revenue"] += order.total_price
 
-    product_clicks: dict[str, int] = {}
-    for event in events:
-        if event.event_type == "product_view" and event.product_name:
-            product_clicks[event.product_name] = product_clicks.get(event.product_name, 0) + 1
-
     result = {
         "from": start.date().isoformat(),
         "to": end.date().isoformat(),
+        "strict_ip_filter": strict_ip_filter_enabled(),
         "page_views": page_views,
         "product_views": product_views,
         "checkout_starts": checkout_starts,
@@ -215,6 +237,8 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
                     **item,
                     "revenue": round(item["revenue"], 2),
                     "clicks": product_clicks.get(item["product_name"], 0),
+                    "product_views": product_views_by_id.get(item["product_id"], 0)
+                    or product_views_by_name.get(item["product_name"], 0),
                 }
                 for item in by_product.values()
             ],
@@ -228,7 +252,7 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         )[:15],
         "recent_activity": _recent_activity(db, start, end),
     }
-    return enrich_metrics(db, result, start, end, orders)
+    return enrich_metrics(db, result, start, end, orders, events)
 
 
 def _recent_activity(db: Session, start: datetime, end: datetime) -> list[dict]:

@@ -114,6 +114,8 @@ def health_check():
         "dhd_configured": dhd_token,
         "admin_configured": admin_ready,
         "meta_ads_configured": meta_ready,
+        "strict_ip_filter": os.getenv("ANALYTICS_STRICT_IP_FILTER", "false").lower()
+        in {"1", "true", "yes"},
         "auto_sync_enabled": os.getenv("AUTO_SYNC_ENABLED", "true").lower()
         in {"1", "true", "yes"},
     }

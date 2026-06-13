@@ -74,7 +74,6 @@ def admin_orders(
         .filter(
             models.Order.created_at >= start,
             models.Order.created_at <= end,
-            valid_order_filter(),
         )
         .order_by(models.Order.created_at.desc())
     )

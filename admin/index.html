@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Confort DZ — Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/admin/styles.css" />
+  <link rel="stylesheet" href="/admin/styles.css?v=3" />
 </head>
 <body>
   <div id="loginView" class="login-wrap">
@@ -46,10 +46,13 @@
     </header>
 
     <main class="container">
+      <div id="globalError" class="error hidden"></div>
+      <div id="globalLoading" class="loading-banner hidden">جاري التحميل...</div>
+
       <div class="title-row">
         <div>
           <h2 id="pageTitle">Overview</h2>
-          <p class="muted small">Metrics count valid Algeria traffic only (non-VPN). Status &amp; delivery sync automatically from Google Sheet + DHD.</p>
+          <p class="muted small" id="pageSubtitle">كل الزوار والطلبيات محسوبين — تأكيد/توصيل من Google Sheet + DHD.</p>
         </div>
         <div class="preset-group">
           <button class="preset active" data-range="7">7 days</button>
@@ -59,13 +62,14 @@
       </div>
 
       <nav class="tabs">
-        <button class="tab active" data-tab="overview">Overview</button>
-        <button class="tab" data-tab="orders">Orders</button>
-        <button class="tab" data-tab="accounting">Comptabilité</button>
-        <button class="tab" data-tab="products">Product Costs</button>
+        <button type="button" class="tab active" data-tab="overview">Overview</button>
+        <button type="button" class="tab" data-tab="products">Products</button>
+        <button type="button" class="tab" data-tab="orders">Orders</button>
+        <button type="button" class="tab" data-tab="accounting">Comptabilité</button>
+        <button type="button" class="tab" data-tab="costs">Costs</button>
       </nav>
 
-      <section id="tab-overview">
+      <section id="tab-overview" class="tab-panel">
         <div class="hero-card">
           <div>
             <div class="hero-label">Revenue (Delivered)</div>
@@ -75,6 +79,7 @@
           <div class="hero-side">
             <div><span>Ad Spend</span><strong id="mAdSpend">0 دج</strong></div>
             <div><span>ROAS</span><strong id="mRoas">0</strong></div>
+            <div><span>Loss</span><strong id="mLoss">0 دج</strong></div>
           </div>
         </div>
 
@@ -92,58 +97,81 @@
         </div>
 
         <div class="card">
-          <h3>Top Products</h3>
-          <table>
-            <thead><tr><th>Product</th><th>Clicks</th><th>Orders</th><th>Revenue</th></tr></thead>
-            <tbody id="productsTableBody"></tbody>
-          </table>
-        </div>
-
-        <div class="card">
-          <h3>Daily P&amp;L Report</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th><th>Orders</th><th>Delivered Rev.</th><th>Ad Spend</th><th>Product Cost</th><th>Net Profit</th>
-              </tr>
-            </thead>
-            <tbody id="pnlTableBody"></tbody>
-          </table>
+          <h3>Daily P&amp;L</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th><th>Orders</th><th>Delivered</th><th>Ad Spend</th><th>Cost</th><th>Profit</th><th>Loss</th>
+                </tr>
+              </thead>
+              <tbody id="pnlTableBody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
-      <section id="tab-orders" class="hidden">
+      <section id="tab-products" class="tab-panel hidden">
+        <div class="card">
+          <h3>Performance par produit</h3>
+          <p class="muted small">Conversion, confirmation, delivery, ad spend, profit — per product.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Views</th>
+                  <th>Orders</th>
+                  <th>CVR</th>
+                  <th>Confirm %</th>
+                  <th>Delivery %</th>
+                  <th>Delivered Rev.</th>
+                  <th>Ad Spend</th>
+                  <th>Cost</th>
+                  <th>Net Profit</th>
+                  <th>Loss</th>
+                </tr>
+              </thead>
+              <tbody id="productPerfBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-orders" class="tab-panel hidden">
         <div class="card">
           <div class="table-actions">
             <input id="orderSearch" placeholder="Search name, phone, order id..." />
             <select id="orderStatus"></select>
-            <button id="reloadOrders" class="btn btn-soft">Refresh</button>
+            <button type="button" id="reloadOrders" class="btn btn-soft">Refresh</button>
           </div>
-          <table>
-            <thead>
-              <tr><th>Order</th><th>Customer</th><th>Product</th><th>Wilaya</th><th>Total</th><th>Status</th><th>Date</th><th></th></tr>
-            </thead>
-            <tbody id="ordersTableBody"></tbody>
-          </table>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Order</th><th>Customer</th><th>Product</th><th>Wilaya</th><th>Total</th><th>Status</th><th>Date</th><th></th></tr>
+              </thead>
+              <tbody id="ordersTableBody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
-      <section id="tab-accounting" class="hidden">
+      <section id="tab-accounting" class="tab-panel hidden">
         <div class="card table-actions">
           <div>
             <h3>Auto Sync</h3>
-            <p class="muted small">Meta ad spend + DHD delivery status — runs every hour automatically.</p>
+            <p class="muted small">Meta ad spend + DHD delivery status.</p>
           </div>
-          <button id="runSyncBtn" class="btn btn-dark">Sync now</button>
+          <button type="button" id="runSyncBtn" class="btn btn-dark">Sync now</button>
         </div>
         <div class="grid-2">
           <div class="card">
-            <h3>Manual Ad Spend (optional)</h3>
+            <h3>Manual Ad Spend</h3>
             <form id="adSpendForm" class="form-grid">
               <div><label>Date</label><input id="adDate" type="date" required /></div>
               <div><label>Platform</label>
                 <select id="adPlatform" required>
-                  <option value="meta">Meta (Facebook/Instagram)</option>
+                  <option value="meta">Meta</option>
                   <option value="tiktok">TikTok</option>
                   <option value="snap">Snapchat</option>
                   <option value="google">Google</option>
@@ -151,10 +179,9 @@
                 </select>
               </div>
               <div><label>Amount (DZD)</label><input id="adAmount" type="number" min="1" step="1" required /></div>
-              <div class="full"><label>Notes</label><input id="adNotes" placeholder="Campaign name..." /></div>
-              <div class="full"><button class="btn btn-primary" type="submit">Save spend</button></div>
+              <div class="full"><label>Notes</label><input id="adNotes" placeholder="Campaign..." /></div>
+              <div class="full"><button class="btn btn-primary" type="submit">Save</button></div>
             </form>
-            <p class="muted small">Meta spend syncs automatically if META_AD_ACCOUNT_ID is configured. Use manual only for TikTok/Snap.</p>
           </div>
           <div class="card">
             <h3>Accounting Summary</h3>
@@ -163,21 +190,25 @@
         </div>
         <div class="card">
           <h3>Ad Spend Entries</h3>
-          <table>
-            <thead><tr><th>Date</th><th>Platform</th><th>Amount</th><th>Source</th><th>Notes</th><th></th></tr></thead>
-            <tbody id="adSpendTableBody"></tbody>
-          </table>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Platform</th><th>Amount</th><th>Source</th><th>Notes</th><th></th></tr></thead>
+              <tbody id="adSpendTableBody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
-      <section id="tab-products" class="hidden">
+      <section id="tab-costs" class="tab-panel hidden">
         <div class="card">
           <h3>Product Purchase Costs</h3>
-          <p class="muted small">Enter once how much you buy each product for (wholesale). Profit uses this automatically — no daily input needed.</p>
-          <table>
-            <thead><tr><th>Product</th><th>Purchase cost (DZD)</th><th></th></tr></thead>
-            <tbody id="productCostsBody"></tbody>
-          </table>
+          <p class="muted small">Cellulite = 3600 DZD. Change once here only.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Product</th><th>Purchase (DZD)</th><th></th></tr></thead>
+              <tbody id="productCostsBody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
     </main>
@@ -187,16 +218,16 @@
     <div class="modal card">
       <div class="modal-header">
         <div><h3 id="modalTitle">Order</h3><p class="muted" id="modalSubtitle"></p></div>
-        <button id="closeModal" class="btn btn-soft">Close</button>
+        <button type="button" id="closeModal" class="btn btn-soft">Close</button>
       </div>
       <div id="orderPreview" class="order-preview"></div>
       <div class="modal-footer">
         <select id="modalStatus"></select>
-        <button id="saveStatusBtn" class="btn btn-primary">Update status</button>
+        <button type="button" id="saveStatusBtn" class="btn btn-primary">Update status</button>
       </div>
     </div>
   </div>
 
-  <script src="/admin/app.js"></script>
+  <script src="/admin/app.js?v=3"></script>
 </body>
 </html>
