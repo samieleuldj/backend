@@ -4,7 +4,8 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-class AdminLoginRequest(BaseModel):    username: str
+class AdminLoginRequest(BaseModel):
+    username: str
     password: str
 
 
