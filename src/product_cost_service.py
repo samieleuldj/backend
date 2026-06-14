@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 from . import models
 
 
-# Cellulite launch — purchase 3600 DZD ($25.50 USD), sell 6499 DZD
+# Cellulite launch — purchase 3600 DZD ($25.50 USD), sell 5900 DZD
 CELLULITE_PURCHASE_DZD = 3600.0
 CELLULITE_PURCHASE_USD = 25.50
-CELLULITE_SELL_DZD = 6499.0
+CELLULITE_SELL_DZD = 5900.0
 USD_TO_DZD_FROM_PURCHASE = round(CELLULITE_PURCHASE_DZD / CELLULITE_PURCHASE_USD, 2)  # 141.18
 
 DEFAULT_PRODUCTS = [
