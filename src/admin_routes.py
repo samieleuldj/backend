@@ -8,6 +8,7 @@ from .admin_auth import authenticate_admin, verify_admin_token
 from .admin_schemas import (
     AdSpendCreate,
     AdSpendEntry,
+    AdminLatestOrderResponse,
     AdminLoginRequest,
     AdminLoginResponse,
     AdminOrderDetail,
@@ -91,6 +92,19 @@ def admin_orders(
         )
 
     return query.offset(offset).limit(limit).all()
+
+
+@router.get("/orders/latest", response_model=AdminLatestOrderResponse)
+def admin_latest_order(
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_admin_token),
+):
+    order = (
+        db.query(models.Order)
+        .order_by(models.Order.id.desc())
+        .first()
+    )
+    return {"order": order}
 
 
 @router.get("/orders/{order_id}", response_model=AdminOrderDetail)

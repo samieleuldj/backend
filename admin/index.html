@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Confort DZ — Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/admin/styles.css?v=3" />
+  <link rel="stylesheet" href="/admin/styles.css?v=5" />
 </head>
 <body>
   <div id="loginView" class="login-wrap">
@@ -38,6 +38,8 @@
         </div>
       </div>
       <div class="header-actions">
+        <button id="orderAlertToggle" class="btn btn-soft alert-toggle active" type="button" title="تنبيهات الطلبيات">🔔 صوت ON</button>
+        <span id="livePulse" class="live-pill hidden">Live</span>
         <input id="dateFrom" type="date" />
         <input id="dateTo" type="date" />
         <button id="applyFilters" class="btn btn-dark">Refresh</button>
@@ -55,9 +57,9 @@
           <p class="muted small" id="pageSubtitle">كل الزوار والطلبيات محسوبين — تأكيد/توصيل من Google Sheet + DHD.</p>
         </div>
         <div class="preset-group">
-          <button class="preset active" data-range="7">7 days</button>
+          <button class="preset active" data-range="today">Today</button>
+          <button class="preset" data-range="7">7 days</button>
           <button class="preset" data-range="30">30 days</button>
-          <button class="preset" data-range="today">Today</button>
         </div>
       </div>
 
@@ -140,6 +142,10 @@
 
       <section id="tab-orders" class="tab-panel hidden">
         <div class="card">
+          <div class="orders-range-row">
+            <p id="ordersRangeLabel" class="muted small"></p>
+            <strong id="ordersCountLabel" class="orders-count"></strong>
+          </div>
           <div class="table-actions">
             <input id="orderSearch" placeholder="Search name, phone, order id..." />
             <select id="orderStatus"></select>
@@ -228,6 +234,8 @@
     </div>
   </div>
 
-  <script src="/admin/app.js?v=3"></script>
+  <div id="orderToastStack" class="order-toast-stack" aria-live="polite"></div>
+
+  <script src="/admin/app.js?v=5"></script>
 </body>
 </html>

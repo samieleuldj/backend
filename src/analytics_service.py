@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import Request
 from sqlalchemy.orm import Session
@@ -10,22 +11,39 @@ from .accounting_service import enrich_metrics
 from .anti_fraud import get_client_ip
 from .ip_validation import lookup_ip
 
+ALGIERS_TZ = ZoneInfo("Africa/Algiers")
+
 
 def strict_ip_filter_enabled() -> bool:
     return os.getenv("ANALYTICS_STRICT_IP_FILTER", "false").lower() in {"1", "true", "yes"}
 
 
+def _parse_date_only(value: str, *, end_of_day: bool = False) -> datetime:
+    """Interpret YYYY-MM-DD as Algeria local day boundaries, store/compare in UTC."""
+    year, month, day = map(int, value.split("-")[:3])
+    if end_of_day:
+        local = datetime(year, month, day, 23, 59, 59, 999999, tzinfo=ALGIERS_TZ)
+    else:
+        local = datetime(year, month, day, 0, 0, 0, tzinfo=ALGIERS_TZ)
+    return local.astimezone(timezone.utc)
+
+
 def _parse_datetime(value: Optional[str], *, end_of_day: bool = False) -> datetime:
     if not value:
-        now = datetime.now(timezone.utc)
-        return now.replace(hour=0, minute=0, second=0, microsecond=0)
+        now_alg = datetime.now(ALGIERS_TZ)
+        local = now_alg.replace(hour=0, minute=0, second=0, microsecond=0)
+        return local.astimezone(timezone.utc)
 
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    raw = value.strip()
+    if len(raw) == 10 and raw[4] == "-" and raw[7] == "-":
+        return _parse_date_only(raw, end_of_day=end_of_day)
+
+    parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     if end_of_day:
         parsed = parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
-    return parsed
+    return parsed.astimezone(timezone.utc)
 
 
 def default_date_range(

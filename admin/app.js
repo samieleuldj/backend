@@ -10,6 +10,13 @@ const state = {
   selectedOrderId: null,
   currentTab: 'overview',
   loading: false,
+  orderAlerts: {
+    enabled: localStorage.getItem('confortdz_order_alerts') !== 'off',
+    lastOrderDbId: Number(localStorage.getItem('confortdz_last_order_id') || 0),
+    initialized: false,
+    pollTimer: null,
+    audioReady: false,
+  },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -50,13 +57,46 @@ function showError(msg) {
   el.classList.remove('hidden');
 }
 
+const ALGIERS_TZ = 'Africa/Algiers';
+
+function formatAlgiersDate(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: ALGIERS_TZ }).format(date);
+}
+
+function shiftIsoDate(isoDate, days) {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return shifted.toISOString().slice(0, 10);
+}
+
 function setRangeDays(days) {
-  const end = new Date();
-  const start = new Date();
-  if (days === 0) start.setHours(0, 0, 0, 0);
-  else start.setDate(end.getDate() - (days - 1));
-  $('dateFrom').value = start.toISOString().slice(0, 10);
-  $('dateTo').value = end.toISOString().slice(0, 10);
+  const today = formatAlgiersDate(new Date());
+  if (days === 0) {
+    $('dateFrom').value = today;
+    $('dateTo').value = today;
+    return;
+  }
+  $('dateFrom').value = shiftIsoDate(today, -(days - 1));
+  $('dateTo').value = today;
+}
+
+function getSelectedRangeLabel() {
+  const from = $('dateFrom')?.value;
+  const to = $('dateTo')?.value;
+  if (!from || !to) return '';
+  if (from === to) return `اليوم (${from}) — Algeria`;
+  return `${from} → ${to}`;
+}
+
+function updateRangeUi() {
+  const label = getSelectedRangeLabel();
+  const ordersLabel = $('ordersRangeLabel');
+  if (ordersLabel) ordersLabel.textContent = label;
+  if (state.currentTab === 'orders' && $('pageSubtitle')) {
+    $('pageSubtitle').textContent = label
+      ? `الفترة: ${label} — الطلبيات والإحصائيات حسب توقيت الجزائر`
+      : 'الطلبيات والإحصائيات حسب توقيت الجزائر';
+  }
 }
 
 async function api(path, options = {}) {
@@ -85,9 +125,191 @@ function showApp() {
 }
 
 function logout() {
+  stopOrderAlertPolling();
   state.token = '';
   localStorage.removeItem(TOKEN_KEY);
   showLogin();
+}
+
+function unlockOrderAudio() {
+  if (state.orderAlerts.audioReady) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    gain.gain.value = 0.0001;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.01);
+    state.orderAlerts.audioReady = true;
+    ctx.close().catch(() => {});
+  } catch (err) {
+    // Ignore — browser may block until user gesture.
+  }
+}
+
+function playSaleSound() {
+  if (!state.orderAlerts.enabled) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const start = ctx.currentTime;
+    const notes = [
+      { freq: 880, at: 0, dur: 0.12, vol: 0.22 },
+      { freq: 1175, at: 0.1, dur: 0.14, vol: 0.24 },
+      { freq: 1568, at: 0.22, dur: 0.28, vol: 0.28 },
+    ];
+
+    notes.forEach((note) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = note.freq;
+      const t = start + note.at;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(note.vol, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + note.dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + note.dur + 0.02);
+    });
+
+    setTimeout(() => ctx.close().catch(() => {}), 700);
+  } catch (err) {
+    // Ignore audio failures.
+  }
+}
+
+async function requestOrderNotifications() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') return;
+  if (Notification.permission === 'denied') return;
+  try {
+    await Notification.requestPermission();
+  } catch (err) {
+    // Ignore.
+  }
+}
+
+function showOrderToast(order) {
+  const stack = $('orderToastStack');
+  if (!stack) return;
+
+  const toast = document.createElement('div');
+  toast.className = 'order-toast';
+  toast.innerHTML = `
+    <strong>💰 طلبية جديدة!</strong>
+    <span>${order.customer_name} — ${order.product_name || 'منتج'}</span>
+    <span>${order.wilaya || ''}</span>
+    <div class="amount">${money(order.total_price)}</div>
+  `;
+
+  toast.addEventListener('click', async () => {
+    toast.remove();
+    switchTab('orders');
+    try {
+      await openOrder(order.order_id);
+    } catch (err) {
+      showError(err.message);
+    }
+  });
+
+  stack.prepend(toast);
+  setTimeout(() => toast.remove(), 12000);
+}
+
+function notifyNewOrder(order) {
+  playSaleSound();
+  showOrderToast(order);
+
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification('طلبية جديدة — Confort DZ', {
+        body: `${order.customer_name} — ${money(order.total_price)}`,
+        tag: `order-${order.order_id}`,
+      });
+    } catch (err) {
+      // Ignore.
+    }
+  }
+}
+
+function updateOrderAlertUi() {
+  const btn = $('orderAlertToggle');
+  const live = $('livePulse');
+  if (btn) {
+    btn.classList.toggle('active', state.orderAlerts.enabled);
+    btn.textContent = state.orderAlerts.enabled ? '🔔 صوت ON' : '🔕 صوت OFF';
+  }
+  if (live) {
+    live.classList.toggle('hidden', !state.token || !state.orderAlerts.enabled);
+  }
+}
+
+async function pollLatestOrder() {
+  if (!state.token || !state.orderAlerts.enabled) return;
+
+  try {
+    const data = await api('/api/admin/orders/latest');
+    const order = data.order;
+    if (!order) return;
+
+    if (!state.orderAlerts.initialized) {
+      state.orderAlerts.initialized = true;
+      state.orderAlerts.lastOrderDbId = order.id;
+      localStorage.setItem('confortdz_last_order_id', String(order.id));
+      return;
+    }
+
+    if (order.id > state.orderAlerts.lastOrderDbId) {
+      state.orderAlerts.lastOrderDbId = order.id;
+      localStorage.setItem('confortdz_last_order_id', String(order.id));
+      notifyNewOrder(order);
+      if (state.currentTab === 'orders') await loadOrders();
+      if (state.metrics) await loadMetrics();
+    }
+  } catch (err) {
+    // Silent poll failures — dashboard refresh still works.
+  }
+}
+
+function startOrderAlertPolling() {
+  stopOrderAlertPolling();
+  if (!state.orderAlerts.enabled) {
+    updateOrderAlertUi();
+    return;
+  }
+
+  updateOrderAlertUi();
+  pollLatestOrder();
+  state.orderAlerts.pollTimer = window.setInterval(pollLatestOrder, 12000);
+}
+
+function stopOrderAlertPolling() {
+  if (state.orderAlerts.pollTimer) {
+    clearInterval(state.orderAlerts.pollTimer);
+    state.orderAlerts.pollTimer = null;
+  }
+  state.orderAlerts.initialized = false;
+  updateOrderAlertUi();
+}
+
+function toggleOrderAlerts() {
+  state.orderAlerts.enabled = !state.orderAlerts.enabled;
+  localStorage.setItem('confortdz_order_alerts', state.orderAlerts.enabled ? 'on' : 'off');
+  if (state.orderAlerts.enabled) {
+    unlockOrderAudio();
+    requestOrderNotifications();
+    startOrderAlertPolling();
+  } else {
+    stopOrderAlertPolling();
+  }
+  updateOrderAlertUi();
 }
 
 async function login(username, password) {
@@ -97,8 +319,11 @@ async function login(username, password) {
   });
   state.token = data.access_token;
   localStorage.setItem(TOKEN_KEY, state.token);
+  unlockOrderAudio();
+  await requestOrderNotifications();
   showApp();
   await bootstrap();
+  startOrderAlertPolling();
 }
 
 function queryRange() {
@@ -117,6 +342,7 @@ async function loadMetrics() {
   renderOverview();
   renderProductPerformance();
   renderAccounting();
+  updateRangeUi();
 }
 
 async function loadProducts() {
@@ -125,11 +351,19 @@ async function loadProducts() {
 }
 
 async function loadOrders() {
-  const params = new URLSearchParams({ from: $('dateFrom').value, to: $('dateTo').value });
+  const from = $('dateFrom').value;
+  const to = $('dateTo').value;
+  if (!from || !to) {
+    showError('اختر تاريخ البداية والنهاية');
+    return;
+  }
+
+  const params = new URLSearchParams({ from, to });
   if ($('orderSearch').value.trim()) params.set('search', $('orderSearch').value.trim());
   if ($('orderStatus').value) params.set('status', $('orderStatus').value);
   state.orders = await api(`/api/admin/orders?${params.toString()}`);
   renderOrders();
+  updateRangeUi();
 }
 
 function renderOverview() {
@@ -259,6 +493,15 @@ function renderProductCosts() {
 }
 
 function renderOrders() {
+  const count = state.orders.length;
+  const range = getSelectedRangeLabel();
+  const countEl = $('ordersCountLabel');
+  if (countEl) {
+    countEl.textContent = range
+      ? `${count} طلبية في ${range}`
+      : `${count} طلبية`;
+  }
+
   $('ordersTableBody').innerHTML = state.orders.map((o) => `
     <tr>
       <td><strong>${o.order_id}</strong></td>
@@ -314,6 +557,7 @@ function switchTab(tab) {
   const panel = $(`tab-${tab}`);
   if (panel) panel.classList.remove('hidden');
   $('pageTitle').textContent = TAB_TITLES[tab] || 'Admin';
+  updateRangeUi();
   refreshCurrentTab();
 }
 
@@ -348,8 +592,12 @@ async function refreshAll() {
 }
 
 async function bootstrap() {
-  setRangeDays(7);
-  if ($('adDate')) $('adDate').value = new Date().toISOString().slice(0, 10);
+  setRangeDays(0);
+  if ($('adDate')) $('adDate').value = formatAlgiersDate(new Date());
+  document.querySelectorAll('.preset').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.range === 'today');
+  });
+  updateRangeUi();
   setLoading(true);
   showError('');
   try {
@@ -427,7 +675,18 @@ $('loginForm').addEventListener('submit', async (e) => {
 });
 
 $('logoutBtn').addEventListener('click', logout);
+if ($('orderAlertToggle')) {
+  $('orderAlertToggle').addEventListener('click', toggleOrderAlerts);
+}
 $('applyFilters').addEventListener('click', refreshAll);
+['dateFrom', 'dateTo'].forEach((id) => {
+  const input = $(id);
+  if (!input) return;
+  input.addEventListener('change', () => {
+    document.querySelectorAll('.preset').forEach((btn) => btn.classList.remove('active'));
+    refreshAll();
+  });
+});
 document.querySelectorAll('.preset').forEach((btn) => {
   btn.addEventListener('click', async () => {
     document.querySelectorAll('.preset').forEach((b) => b.classList.remove('active'));
@@ -497,7 +756,9 @@ $('runSyncBtn').addEventListener('click', async () => {
 
 if (state.token) {
   showApp();
-  bootstrap();
+  unlockOrderAudio();
+  bootstrap().then(() => startOrderAlertPolling());
 } else {
   showLogin();
 }
+updateOrderAlertUi();

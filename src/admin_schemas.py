@@ -72,6 +72,10 @@ class AdminOrderSummary(BaseModel):
         from_attributes = True
 
 
+class AdminLatestOrderResponse(BaseModel):
+    order: Optional[AdminOrderSummary] = None
+
+
 class AdminOrderDetail(AdminOrderSummary):
     delivery_type: str
     unit_price: Optional[float] = None
