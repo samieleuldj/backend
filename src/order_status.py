@@ -1,7 +1,7 @@
 """Normalize order statuses (Arabic sheet + English admin)."""
 
 PENDING = {"pending", "في الانتظار", "en attente"}
-CONFIRMED = {"confirmed", "مؤكd", "مؤكد", "confirmé"}
+CONFIRMED = {"confirmed", "مؤكd", "confirmé"}
 SHIPPED = {"shipped", "تم الشحن", "expédié", "expedie"}
 DELIVERED = {"delivered", "تم التسليم", "livré", "livre", "delivered"}
 RETURNED = {"returned", "مرتجع", "retourné", "retourne"}
@@ -19,7 +19,10 @@ def is_pending(status: str | None) -> bool:
 
 def is_confirmed(status: str | None) -> bool:
     s = _norm(status)
-    return s in CONFIRMED
+    if s in CONFIRMED:
+        return True
+    raw = (status or "").strip()
+    return "مؤك" in raw or "confirm" in s
 
 
 def is_shipped(status: str | None) -> bool:
@@ -41,6 +44,13 @@ def is_cancelled(status: str | None) -> bool:
 
 def is_active_order(status: str | None) -> bool:
     return not is_cancelled(status)
+
+
+def counts_for_confirmation_rate(status: str | None) -> bool:
+    """Confirmed by phone, shipped, or delivered — excludes pending/cancelled."""
+    if is_cancelled(status):
+        return False
+    return is_confirmed(status) or is_shipped(status) or is_delivered(status)
 
 
 ALL_STATUSES = [

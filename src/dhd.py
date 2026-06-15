@@ -136,7 +136,7 @@ def create_dhd_parcel(order: dict[str, Any]) -> dict[str, Any]:
     from .commune_resolver import resolve_commune_for_dhd
 
     raw_commune = str(order.get("commune") or "")
-    dhd_commune = resolve_commune_for_dhd(raw_commune, wilaya_code)
+    dhd_commune = resolve_commune_for_dhd(raw_commune, wilaya_code, stop_desk=bool(stop_desk))
 
     payload = {
         "reference": str(order.get("order_id") or ""),
