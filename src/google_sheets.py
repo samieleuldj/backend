@@ -134,3 +134,37 @@ def send_order_to_google_sheets(order: dict) -> bool:
     except Exception:
         logger.exception("SHEETS ERROR order=%s", order.get("order_id"))
         return False
+
+
+def push_order_status_to_sheet(
+    order_id: str,
+    status: str,
+    tracking_number: str | None = None,
+) -> bool:
+    url = get_webhook_url()
+    if not url:
+        return False
+
+    payload = {
+        "action": "status_sync",
+        "order_id": order_id.strip(),
+        "status": status.strip(),
+        "tracking_number": (tracking_number or "").strip(),
+    }
+    if not payload["order_id"] or not payload["status"]:
+        return False
+
+    try:
+        response = _post_google_script(url, payload)
+        if response.status_code >= 400:
+            logger.warning(
+                "SHEETS status sync fail order=%s status=%s http=%s",
+                order_id,
+                status,
+                response.status_code,
+            )
+            return False
+        return True
+    except Exception:
+        logger.exception("SHEETS status sync error order=%s", order_id)
+        return False

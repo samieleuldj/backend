@@ -563,6 +563,10 @@ function switchTab(tab) {
   refreshCurrentTab();
 }
 
+async function runDhdSync() {
+  return api('/api/admin/sync/run', { method: 'POST' });
+}
+
 async function refreshCurrentTab() {
   setLoading(true);
   showError('');
@@ -570,7 +574,10 @@ async function refreshCurrentTab() {
     if (state.currentTab === 'overview' || state.currentTab === 'products' || state.currentTab === 'accounting') {
       await loadMetrics();
     }
-    if (state.currentTab === 'orders') await loadOrders();
+    if (state.currentTab === 'orders') {
+      await runDhdSync();
+      await loadOrders();
+    }
     if (state.currentTab === 'costs') await loadProducts();
   } catch (err) {
     showError(err.message || 'Failed to load data');
@@ -583,6 +590,7 @@ async function refreshAll() {
   setLoading(true);
   showError('');
   try {
+    await runDhdSync();
     await loadMetrics();
     if (state.currentTab === 'orders') await loadOrders();
     if (state.currentTab === 'costs') await loadProducts();
@@ -745,11 +753,11 @@ $('runSyncBtn').addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = 'Syncing...';
   try {
-    const result = await api('/api/admin/sync/run', { method: 'POST' });
+    const result = await runDhdSync();
     alert(
       `Sync OK\n` +
-      `DHD: ${result.dhd?.updated || 0} statuts mis à jour\n\n` +
-      `Google Sheet: Confort DZ → مزامنة التسليم من DHD + مزامنة اليوم → Admin`
+      `DHD → Admin: ${result.dhd?.updated || 0} livrés/shipped mis à jour\n` +
+      `Sheet: mis à jour automatiquement si Code.gs à jour`
     );
     await loadMetrics();
     await loadOrders();

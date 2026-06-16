@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from . import models
 from .dhd import fetch_dhd_orders, find_dhd_order, map_dhd_status
+from .google_sheets import push_order_status_to_sheet
 from .meta_ads_service import sync_meta_ad_spend
 from .order_status import canonical_status, is_cancelled, is_delivered, is_returned
 
@@ -94,6 +95,7 @@ def sync_dhd_order_statuses(db: Session, limit: int = 200) -> dict:
     updated = 0
     checked = 0
     errors: list[str] = []
+    sheet_updates: list[tuple[str, str, str]] = []
 
     try:
         dhd_rows = fetch_dhd_orders(max_pages=5, per_page=100)
@@ -150,12 +152,16 @@ def sync_dhd_order_statuses(db: Session, limit: int = 200) -> dict:
             if changed:
                 order.updated_at = datetime.now(timezone.utc)
                 updated += 1
+                sheet_updates.append((order.order_id, new_status, new_tracking or tracking))
         except Exception as exc:
             errors.append(f"{order.order_id}: {exc}")
             logger.warning("DHD sync failed for %s: %s", order.order_id, exc)
 
     if updated:
         db.commit()
+
+    for order_id, status, tracking in sheet_updates:
+        push_order_status_to_sheet(order_id, status, tracking)
 
     return {
         "ok": True,
