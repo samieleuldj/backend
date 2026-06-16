@@ -1,6 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from . import models
@@ -70,17 +71,23 @@ def admin_orders(
     _: str = Depends(verify_admin_token),
 ):
     start, end = default_date_range(date_from, date_to)
-    query = (
-        db.query(models.Order)
-        .filter(
+    query = db.query(models.Order)
+
+    if status:
+        query = query.filter(
+            or_(
+                and_(models.Order.created_at >= start, models.Order.created_at <= end),
+                and_(models.Order.updated_at >= start, models.Order.updated_at <= end),
+            )
+        )
+        query = apply_admin_status_filter(query, status)
+    else:
+        query = query.filter(
             models.Order.created_at >= start,
             models.Order.created_at <= end,
         )
-        .order_by(models.Order.created_at.desc())
-    )
 
-    if status:
-        query = apply_admin_status_filter(query, status)
+    query = query.order_by(models.Order.updated_at.desc())
 
     if search:
         term = f"%{search.strip()}%"

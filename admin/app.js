@@ -602,10 +602,10 @@ async function refreshAll() {
 }
 
 async function bootstrap() {
-  setRangeDays(0);
+  setRangeDays(7);
   if ($('adDate')) $('adDate').value = formatAlgiersDate(new Date());
   document.querySelectorAll('.preset').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.range === 'today');
+    btn.classList.toggle('active', btn.dataset.range === '7');
   });
   updateRangeUi();
   setLoading(true);

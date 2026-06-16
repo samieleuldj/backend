@@ -4,6 +4,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import Request
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from . import models
@@ -150,6 +151,18 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         .all()
     )
 
+    orders_for_status = (
+        db.query(models.Order)
+        .filter(
+            or_(
+                and_(models.Order.created_at >= start, models.Order.created_at <= end),
+                and_(models.Order.updated_at >= start, models.Order.updated_at <= end),
+            ),
+            valid_order_filter(),
+        )
+        .all()
+    )
+
     page_views = sum(1 for event in events if event.event_type == "page_view")
     product_views = sum(1 for event in events if event.event_type == "product_view")
     checkout_starts = sum(1 for event in events if event.event_type == "checkout_start")
@@ -274,7 +287,7 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         )[:15],
         "recent_activity": _recent_activity(db, start, end),
     }
-    return enrich_metrics(db, result, start, end, orders, events)
+    return enrich_metrics(db, result, start, end, orders, events, orders_for_status)
 
 
 def _recent_activity(db: Session, start: datetime, end: datetime) -> list[dict]:

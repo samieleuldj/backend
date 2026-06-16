@@ -218,9 +218,11 @@ def enrich_metrics(
     end: datetime,
     orders: list[models.Order],
     events: Optional[list[models.AnalyticsEvent]] = None,
+    orders_for_status: Optional[list[models.Order]] = None,
 ) -> dict:
     ad_rows = _get_ad_spend_rows(db, start, end)
-    accounting = _accounting_summary(db, orders, ad_rows)
+    status_orders = orders_for_status or orders
+    accounting = _accounting_summary(db, status_orders, ad_rows)
     event_rows = events or []
 
     daily_ad: dict[str, float] = {}
@@ -261,7 +263,7 @@ def enrich_metrics(
         )
 
     by_channel: dict[str, dict] = {}
-    for order in orders:
+    for order in status_orders:
         channel = (order.utm_source or "direct").strip() or "direct"
         item = by_channel.setdefault(
             channel,
