@@ -6,18 +6,12 @@ from urllib.parse import urljoin
 
 import httpx
 
+from .wilaya_codes import extract_wilaya_code
+
 logger = logging.getLogger(__name__)
 
-WILAYA_CODE_RE = re.compile(r"^(\d{1,2})")
 DEFAULT_DHD_API_URL = "https://platform.dhd-dz.com"
 LEGACY_DHD_API_URL = "https://dhd.ecotrack.dz"
-
-
-def extract_wilaya_code(wilaya: str) -> int:
-    match = WILAYA_CODE_RE.match((wilaya or "").strip())
-    if not match:
-        return 0
-    return int(match.group(1))
 
 
 def normalize_phone_for_dhd(phone: str) -> str:

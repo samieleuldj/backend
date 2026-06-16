@@ -76,7 +76,7 @@ def sync_orders_bulk_from_sheet(
     return {"synced": synced, "missing": missing[:20]}
 
 
-def sync_dhd_order_statuses(db: Session, limit: int = 200) -> dict:
+def sync_dhd_order_statuses(db: Session, limit: int = 500) -> dict:
     token = (os.getenv("DHD_API_TOKEN") or "").strip()
     if not token:
         return {"ok": False, "reason": "dhd_not_configured", "updated": 0}
@@ -115,9 +115,6 @@ def sync_dhd_order_statuses(db: Session, limit: int = 200) -> dict:
     }
 
     for order in orders:
-        if is_delivered(order.status) or is_returned(order.status) or is_cancelled(order.status):
-            continue
-
         tracking = (order.tracking_number or "").strip()
         reference = (order.order_id or "").strip()
         if not tracking and not reference:
@@ -132,6 +129,9 @@ def sync_dhd_order_statuses(db: Session, limit: int = 200) -> dict:
             )
             if not raw:
                 errors.append(f"{order.order_id}: not found in DHD")
+                continue
+
+            if is_cancelled(order.status):
                 continue
 
             mapped = map_dhd_status(raw)

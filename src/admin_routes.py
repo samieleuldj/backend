@@ -261,7 +261,7 @@ def admin_deliveries(
     _: str = Depends(verify_admin_token),
 ):
     """Sync DHD then return all delivered orders for the period."""
-    sync_result = sync_dhd_order_statuses(db, limit=300)
+    sync_result = sync_dhd_order_statuses(db, limit=500)
     start, end = default_date_range(date_from, date_to)
 
     query = (

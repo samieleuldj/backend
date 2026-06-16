@@ -552,14 +552,22 @@ function renderDeliveries() {
   if (rangeEl) rangeEl.textContent = range ? `الفترة: ${range}` : '';
 
   const sync = data.sync || {};
+  const syncNote = sync.ok === false
+    ? (sync.reason === 'dhd_not_configured'
+      ? 'DHD غير مربوط — أضف DHD_API_TOKEN'
+      : 'فشل الاتصال بـ DHD')
+    : `DHD: ${sync.updated || 0} محدّث / ${sync.checked || 0} مفحوص`;
+  const syncErrors = (sync.errors || []).length
+    ? `<p class="muted small">${sync.errors.join(' · ')}</p>`
+    : '';
+
   $('deliveriesStats').innerHTML = [
     ['تم التسليم', data.total || orders.length],
-    ['Revenue', money(data.revenue_delivered || 0)],
-    ['DHD updated', sync.updated || 0],
-    ['DHD checked', sync.checked || 0],
+    ['إيراد مسلّم', money(data.revenue_delivered || 0)],
+    ['آخر مزامنة DHD', syncNote],
   ].map(([label, value]) => `
     <div class="metric-card"><span>${label}</span><strong>${value}</strong></div>
-  `).join('');
+  `).join('') + syncErrors;
 
   $('deliveriesTableBody').innerHTML = orders.map((o) => `
     <tr class="order-row order-row-delivered">
@@ -571,7 +579,7 @@ function renderDeliveries() {
       <td>${fmtDate(o.updated_at || o.created_at)}</td>
       <td><button type="button" class="btn btn-soft" data-order-id="${o.order_id}">View</button></td>
     </tr>
-  `).join('') || '<tr><td colspan="7">لا توجد طلبيات مسلّمة — اضغط Sync DHD أو وسّع الفترة (30 days)</td></tr>';
+  `).join('') || '<tr><td colspan="7">لا توجد طلبيات مسلّمة في هذه الفترة — جرّب 30 يوم</td></tr>';
 }
 
 async function openOrder(orderId) {
