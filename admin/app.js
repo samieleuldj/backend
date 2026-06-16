@@ -29,13 +29,13 @@ function fmtDate(v) {
 }
 
 function statusClass(status) {
-  const s = String(status || '').toLowerCase();
-  if (s.includes('pending') || s.includes('انتظار')) return 'pending';
-  if (s.includes('confirm') || s.includes('مؤك')) return 'confirmed';
-  if (s.includes('ship') || s.includes('شحن')) return 'shipped';
-  if (s.includes('deliver') || s.includes('تسل')) return 'delivered';
-  if (s.includes('return') || s.includes('مرتج')) return 'returned';
-  if (s.includes('cancel') || s.includes('ملغ')) return 'returned';
+  const s = String(status || '').trim();
+  const lower = s.toLowerCase();
+  if (lower.includes('deliver') || s.includes('تسليم') || s.includes('Livré')) return 'delivered';
+  if (lower.includes('return') || s.includes('مرتج') || lower.includes('cancel') || s.includes('ملغ')) return 'returned';
+  if (lower.includes('ship') || s.includes('شحن') || lower.includes('expédi')) return 'shipped';
+  if (lower.includes('confirm') || s.includes('مؤك')) return 'confirmed';
+  if (lower.includes('pending') || s.includes('انتظار')) return 'pending';
   return 'pending';
 }
 
@@ -505,7 +505,7 @@ function renderOrders() {
   }
 
   $('ordersTableBody').innerHTML = state.orders.map((o) => `
-    <tr>
+    <tr class="order-row order-row-${statusClass(o.status)}">
       <td><strong>${o.order_id}</strong></td>
       <td>${o.customer_name}<div class="muted small">${o.phone}</div></td>
       <td>${o.product_name}</td>

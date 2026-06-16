@@ -122,8 +122,14 @@ th { color: var(--muted); font-size: 13px; }
 .status.pending { background: #fef3c7; color: #92400e; }
 .status.confirmed { background: #dbeafe; color: #1d4ed8; }
 .status.shipped { background: #e0f2fe; color: #0369a1; }
-.status.delivered { background: #d1fae5; color: #047857; }
+.status.delivered { background: #cfe2f3; color: #1e40af; }
 .status.returned { background: #fee2e2; color: #b91c1c; }
+
+tr.order-row-delivered td { background: #eef6fc; }
+tr.order-row-shipped td { background: #fffbeb; }
+tr.order-row-confirmed td { background: #f0fdf4; }
+tr.order-row-pending td { background: #fafafa; }
+tr.order-row-returned td { background: #fef2f2; }
 
 .table-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
