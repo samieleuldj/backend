@@ -21,7 +21,7 @@ from .admin_schemas import (
 from .analytics_service import default_date_range, get_metrics, valid_order_filter
 from .order_status import ALL_STATUSES, apply_admin_status_filter
 from .product_cost_service import ensure_default_products
-from .sync_service import run_auto_sync
+from .sync_service import run_auto_sync, sync_dhd_order_statuses
 from .database import SessionLocal
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -251,3 +251,38 @@ def admin_run_sync(
     _: str = Depends(verify_admin_token),
 ):
     return run_auto_sync(db)
+
+
+@router.get("/deliveries")
+def admin_deliveries(
+    date_from: Optional[str] = Query(None, alias="from"),
+    date_to: Optional[str] = Query(None, alias="to"),
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_admin_token),
+):
+    """Sync DHD then return all delivered orders for the period."""
+    sync_result = sync_dhd_order_statuses(db, limit=300)
+    start, end = default_date_range(date_from, date_to)
+
+    query = (
+        db.query(models.Order)
+        .filter(
+            or_(
+                and_(models.Order.created_at >= start, models.Order.created_at <= end),
+                and_(models.Order.updated_at >= start, models.Order.updated_at <= end),
+            )
+        )
+        .order_by(models.Order.updated_at.desc())
+    )
+    query = apply_admin_status_filter(query, "تم التسليم")
+    orders = query.limit(500).all()
+
+    revenue = round(sum(float(o.total_price or 0) for o in orders), 2)
+    return {
+        "sync": sync_result,
+        "orders": orders,
+        "total": len(orders),
+        "revenue_delivered": revenue,
+        "from": start.date().isoformat(),
+        "to": end.date().isoformat(),
+    }

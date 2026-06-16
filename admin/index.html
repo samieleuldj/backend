@@ -67,6 +67,7 @@
         <button type="button" class="tab active" data-tab="overview">Overview</button>
         <button type="button" class="tab" data-tab="products">Products</button>
         <button type="button" class="tab" data-tab="orders">Orders</button>
+        <button type="button" class="tab" data-tab="deliveries">التوصيل DHD</button>
         <button type="button" class="tab" data-tab="accounting">Comptabilité</button>
         <button type="button" class="tab" data-tab="costs">Costs</button>
       </nav>
@@ -162,6 +163,33 @@
         </div>
       </section>
 
+      <section id="tab-deliveries" class="tab-panel hidden">
+        <div class="card table-actions">
+          <div>
+            <h3>التوصيل — DHD</h3>
+            <p class="muted small">مزامنة تلقائية مع DHD — كل الطلبيات <strong>تم التسليم</strong> في الفترة.</p>
+          </div>
+          <button type="button" id="reloadDeliveries" class="btn btn-dark">Sync DHD</button>
+        </div>
+        <div class="metrics-grid" id="deliveriesStats"></div>
+        <div class="card">
+          <div class="orders-range-row">
+            <p id="deliveriesRangeLabel" class="muted small"></p>
+            <strong id="deliveriesCountLabel" class="orders-count"></strong>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order</th><th>Customer</th><th>Tracking DHD</th><th>Wilaya</th><th>Total</th><th>Delivered</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="deliveriesTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section id="tab-accounting" class="tab-panel hidden">
         <div class="card table-actions">
           <div>
@@ -236,6 +264,6 @@
 
   <div id="orderToastStack" class="order-toast-stack" aria-live="polite"></div>
 
-  <script src="/admin/app.js?v=10"></script>
+  <script src="/admin/app.js?v=11"></script>
 </body>
 </html>

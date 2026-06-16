@@ -67,6 +67,7 @@ class AdminOrderSummary(BaseModel):
     risk_score: int
     is_valid_traffic: Optional[bool] = True
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

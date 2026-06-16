@@ -5,6 +5,7 @@ const state = {
   token: localStorage.getItem(TOKEN_KEY) || '',
   metrics: null,
   orders: [],
+  deliveries: null,
   statuses: [],
   products: [],
   selectedOrderId: null,
@@ -96,6 +97,11 @@ function updateRangeUi() {
     $('pageSubtitle').textContent = label
       ? `الفترة: ${label} — الطلبيات والإحصائيات حسب توقيت الجزائر`
       : 'الطلبيات والإحصائيات حسب توقيت الجزائر';
+  }
+  if (state.currentTab === 'deliveries' && $('pageSubtitle')) {
+    $('pageSubtitle').textContent = label
+      ? `DHD — ${label} — تم التسليم (created أو updated في الفترة)`
+      : 'DHD — تم التسليم';
   }
 }
 
@@ -358,11 +364,25 @@ async function loadOrders() {
     return;
   }
 
-  const params = new URLSearchParams({ from, to });
+  const params = new URLSearchParams({ from, to, limit: '500' });
   if ($('orderSearch').value.trim()) params.set('search', $('orderSearch').value.trim());
   if ($('orderStatus').value) params.set('status', $('orderStatus').value);
   state.orders = await api(`/api/admin/orders?${params.toString()}`);
   renderOrders();
+  updateRangeUi();
+}
+
+async function loadDeliveries() {
+  const from = $('dateFrom').value;
+  const to = $('dateTo').value;
+  if (!from || !to) {
+    showError('اختر تاريخ البداية والنهاية');
+    return;
+  }
+
+  const params = new URLSearchParams({ from, to });
+  state.deliveries = await api(`/api/admin/deliveries?${params.toString()}`);
+  renderDeliveries();
   updateRangeUi();
 }
 
@@ -518,6 +538,42 @@ function renderOrders() {
   `).join('') || '<tr><td colspan="8">No orders in this period</td></tr>';
 }
 
+function renderDeliveries() {
+  const data = state.deliveries || { orders: [], total: 0, revenue_delivered: 0, sync: {} };
+  const orders = data.orders || [];
+  const range = getSelectedRangeLabel();
+  const countEl = $('deliveriesCountLabel');
+  const rangeEl = $('deliveriesRangeLabel');
+  if (countEl) {
+    countEl.textContent = range
+      ? `${orders.length} طلبية مسلّمة — ${range}`
+      : `${orders.length} طلبية مسلّمة`;
+  }
+  if (rangeEl) rangeEl.textContent = range ? `الفترة: ${range}` : '';
+
+  const sync = data.sync || {};
+  $('deliveriesStats').innerHTML = [
+    ['تم التسليم', data.total || orders.length],
+    ['Revenue', money(data.revenue_delivered || 0)],
+    ['DHD updated', sync.updated || 0],
+    ['DHD checked', sync.checked || 0],
+  ].map(([label, value]) => `
+    <div class="metric-card"><span>${label}</span><strong>${value}</strong></div>
+  `).join('');
+
+  $('deliveriesTableBody').innerHTML = orders.map((o) => `
+    <tr class="order-row order-row-delivered">
+      <td><strong>${o.order_id}</strong></td>
+      <td>${o.customer_name}<div class="muted small">${o.phone}</div></td>
+      <td dir="ltr">${o.tracking_number || '—'}</td>
+      <td>${o.wilaya}</td>
+      <td>${money(o.total_price)}</td>
+      <td>${fmtDate(o.updated_at || o.created_at)}</td>
+      <td><button type="button" class="btn btn-soft" data-order-id="${o.order_id}">View</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="7">لا توجد طلبيات مسلّمة — اضغط Sync DHD أو وسّع الفترة (30 days)</td></tr>';
+}
+
 async function openOrder(orderId) {
   state.selectedOrderId = orderId;
   const o = await api(`/api/admin/orders/${orderId}`);
@@ -544,12 +600,19 @@ const TAB_TITLES = {
   overview: 'Overview',
   products: 'Products',
   orders: 'Orders',
+  deliveries: 'التوصيل DHD',
   accounting: 'Comptabilité',
   costs: 'Product Costs',
 };
 
 function switchTab(tab) {
   state.currentTab = tab;
+  if (tab === 'deliveries') {
+    setRangeDays(30);
+    document.querySelectorAll('.preset').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.range === '30');
+    });
+  }
   document.querySelectorAll('.tab').forEach((el) => {
     el.classList.toggle('active', el.dataset.tab === tab);
   });
@@ -578,6 +641,7 @@ async function refreshCurrentTab() {
       await runDhdSync();
       await loadOrders();
     }
+    if (state.currentTab === 'deliveries') await loadDeliveries();
     if (state.currentTab === 'costs') await loadProducts();
   } catch (err) {
     showError(err.message || 'Failed to load data');
@@ -593,6 +657,7 @@ async function refreshAll() {
     await runDhdSync();
     await loadMetrics();
     if (state.currentTab === 'orders') await loadOrders();
+    if (state.currentTab === 'deliveries') await loadDeliveries();
     if (state.currentTab === 'costs') await loadProducts();
   } catch (err) {
     showError(err.message || 'Failed to load data');
@@ -706,6 +771,7 @@ document.querySelectorAll('.preset').forEach((btn) => {
   });
 });
 $('reloadOrders').addEventListener('click', loadOrders);
+$('reloadDeliveries').addEventListener('click', loadDeliveries);
 $('orderSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') loadOrders(); });
 $('orderStatus').addEventListener('change', loadOrders);
 $('closeModal').addEventListener('click', () => $('orderModal').classList.add('hidden'));
