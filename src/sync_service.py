@@ -98,7 +98,7 @@ def sync_dhd_order_statuses(db: Session, limit: int = 200) -> dict:
     sheet_updates: list[tuple[str, str, str]] = []
 
     try:
-        dhd_rows = fetch_dhd_orders(max_pages=5, per_page=100)
+        dhd_rows = fetch_dhd_orders(max_pages=10, per_page=100)
     except Exception as exc:
         logger.warning("DHD bulk fetch failed: %s", exc)
         dhd_rows = []
@@ -162,6 +162,15 @@ def sync_dhd_order_statuses(db: Session, limit: int = 200) -> dict:
 
     for order_id, status, tracking in sheet_updates:
         push_order_status_to_sheet(order_id, status, tracking)
+
+    # Keep Google Sheet in sync for every delivered order already in DB.
+    for order in orders:
+        if is_delivered(order.status):
+            push_order_status_to_sheet(
+                order.order_id,
+                canonical_status(order.status),
+                order.tracking_number,
+            )
 
     return {
         "ok": True,
