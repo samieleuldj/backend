@@ -1,7 +1,8 @@
 import json
 import logging
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 import httpx
@@ -47,8 +48,9 @@ def fetch_meta_daily_spend(days_back: int = 7) -> list[dict]:
     if not token or not account_id:
         return []
 
-    since = (date.today() - timedelta(days=max(1, days_back) - 1)).isoformat()
-    until = date.today().isoformat()
+    today = datetime.now(ZoneInfo("Africa/Algiers")).date()
+    since = (today - timedelta(days=max(1, days_back) - 1)).isoformat()
+    until = today.isoformat()
 
     url = f"https://graph.facebook.com/v21.0/{account_id}/insights"
     params = {

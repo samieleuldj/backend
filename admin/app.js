@@ -392,32 +392,32 @@ function renderOverview() {
   const acc = m.accounting || {};
 
   $('mDeliveredRevenue').textContent = money(acc.revenue_delivered || 0);
-  $('mNetProfit').textContent = `Net profit ${money(acc.net_profit || 0)}`;
+  $('mNetProfit').textContent = `صافي الربح ${money(acc.net_profit || 0)}`;
   $('mAdSpend').textContent = money(acc.ad_spend_total || 0);
   $('mRoas').textContent = acc.roas || 0;
   if ($('mLoss')) $('mLoss').textContent = money(acc.loss || 0);
 
-  const filterNote = m.strict_ip_filter ? 'VPN filter ON' : 'All visitors counted';
+  const rangeLabel = getSelectedRangeLabel();
+  const filterNote = m.strict_ip_filter ? 'VPN filter ON' : 'توقيت الجزائر';
   if ($('pageSubtitle')) {
-    $('pageSubtitle').textContent = `${filterNote} — Sheet + DHD sync for confirmation/delivery.`;
+    $('pageSubtitle').textContent = rangeLabel
+      ? `${rangeLabel} — طلبيات جديدة + تسليم/شحن محدّث في الفترة`
+      : `${filterNote} — Sheet + DHD sync`;
   }
 
   const cards = [
-    ['Total Orders', acc.orders_total || 0],
-    ['Confirmation Rate', pct(acc.confirmation_rate)],
-    ['Delivery Rate', pct(acc.delivery_rate)],
-    ['Conversion Rate', pct(m.conversion_rate)],
-    ['Checkout CVR', pct(m.checkout_cvr)],
-    ['Unique Visitors', m.unique_visitors || 0],
-    ['Page Views', m.page_views || 0],
-    ['Product Views', m.product_views || 0],
-    ['Pending', acc.orders_pending || 0],
-    ['Confirmed+', acc.orders_confirmed || 0],
-    ['Shipped', acc.orders_shipped || 0],
-    ['Delivered', acc.orders_delivered || 0],
-    ['Cancelled', acc.orders_cancelled || 0],
-    ['AOV', money(m.avg_order_value)],
-    ['Gross Profit', money(acc.gross_profit || 0)],
+    ['طلبيات جديدة', acc.orders_total || 0],
+    ['حبات طلب', acc.units_ordered || 0],
+    ['حبات شحن', acc.units_shipped || 0],
+    ['حبات تسلّم', acc.units_delivered || 0],
+    ['مؤكّد', acc.orders_confirmed || 0],
+    ['مسلّم', acc.orders_delivered || 0],
+    ['نسبة التأكيد', pct(acc.confirmation_rate)],
+    ['نسبة التسليم', pct(acc.delivery_rate)],
+    ['زوار', m.unique_visitors || 0],
+    ['إعلانات', money(acc.ad_spend_total || 0)],
+    ['ربح صافي', money(acc.net_profit || 0)],
+    ['خسارة', money(acc.loss || 0)],
   ];
 
   $('metricsGrid').innerHTML = cards.map(([label, value]) => `
@@ -459,21 +459,50 @@ function renderOverview() {
 
 function renderProductPerformance() {
   const rows = state.metrics?.product_performance || [];
-  $('productPerfBody').innerHTML = rows.map((p) => `
+  const acc = state.metrics?.accounting || {};
+  const range = getSelectedRangeLabel();
+
+  if ($('productPerfNote')) {
+    $('productPerfNote').textContent = range
+      ? `${range} — طلبيات créées + شحن/تسليم محدّث · إعلانات موزّعة حسب الطلبيات`
+      : 'اختر الفترة من فوق';
+  }
+
+  if ($('productSummaryCards')) {
+    $('productSummaryCards').innerHTML = [
+      ['حبات طلب', acc.units_ordered || 0],
+      ['حبات شحن', acc.units_shipped || 0],
+      ['حبات تسلّم', acc.units_delivered || 0],
+      ['إعلانات', money(acc.ad_spend_total || 0)],
+      ['ربح صافي', money(acc.net_profit || 0)],
+      ['خسارة', money(acc.loss || 0)],
+    ].map(([label, value]) => `
+      <div class="metric-card"><span>${label}</span><strong>${value}</strong></div>
+    `).join('');
+  }
+
+  $('productPerfBody').innerHTML = rows.map((p) => {
+    const profit = Number(p.net_profit || 0);
+    const profitCell = profit >= 0
+      ? `<strong class="text-green">${money(profit)}</strong>`
+      : '—';
+    const lossCell = profit < 0
+      ? `<strong class="text-red">${money(p.loss || Math.abs(profit))}</strong>`
+      : '—';
+    return `
     <tr>
       <td><strong>${p.product_name}</strong></td>
-      <td>${p.product_views || 0}</td>
       <td>${p.orders || 0}</td>
-      <td>${pct(p.conversion_rate)}</td>
-      <td>${pct(p.confirmation_rate)}</td>
-      <td>${pct(p.delivery_rate)}</td>
+      <td>${p.units_ordered || 0}</td>
+      <td>${p.units_shipped || 0}</td>
+      <td>${p.units_delivered || 0}</td>
       <td>${money(p.delivered_revenue)}</td>
-      <td>${money(p.ad_spend)}</td>
       <td>${money(p.product_cost)}</td>
-      <td><strong>${money(p.net_profit)}</strong></td>
-      <td>${money(p.loss || 0)}</td>
-    </tr>
-  `).join('') || '<tr><td colspan="11">No product data yet — need orders + page views</td></tr>';
+      <td>${money(p.ad_spend)}</td>
+      <td>${profitCell}</td>
+      <td>${lossCell}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="10">لا توجد بيانات — اختر فترة فيها طلبيات</td></tr>';
 }
 
 function renderAccounting() {
@@ -606,7 +635,7 @@ async function openOrder(orderId) {
 
 const TAB_TITLES = {
   overview: 'Overview',
-  products: 'Products',
+  products: 'حساب المنتجات',
   orders: 'Orders',
   deliveries: 'التوصيل DHD',
   accounting: 'Comptabilité',
@@ -675,10 +704,10 @@ async function refreshAll() {
 }
 
 async function bootstrap() {
-  setRangeDays(7);
+  setRangeDays(0);
   if ($('adDate')) $('adDate').value = formatAlgiersDate(new Date());
   document.querySelectorAll('.preset').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.range === '7');
+    btn.classList.toggle('active', btn.dataset.range === 'today');
   });
   updateRangeUi();
   setLoading(true);

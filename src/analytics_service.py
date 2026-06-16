@@ -15,6 +15,18 @@ from .ip_validation import lookup_ip
 ALGIERS_TZ = ZoneInfo("Africa/Algiers")
 
 
+def _algiers_day(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(ALGIERS_TZ).date().isoformat()
+
+
+def _display_date_range(date_from: Optional[str], date_to: Optional[str], start: datetime, end: datetime) -> tuple[str, str]:
+    if date_from and date_to:
+        return date_from, date_to
+    return _algiers_day(start), _algiers_day(end)
+
+
 def strict_ip_filter_enabled() -> bool:
     return os.getenv("ANALYTICS_STRICT_IP_FILTER", "false").lower() in {"1", "true", "yes"}
 
@@ -130,6 +142,7 @@ def valid_event_filter():
 
 def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -> dict:
     start, end = default_date_range(date_from, date_to)
+    display_from, display_to = _display_date_range(date_from, date_to, start, end)
 
     events = (
         db.query(models.AnalyticsEvent)
@@ -175,7 +188,7 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
 
     daily_map: dict[str, dict] = {}
     for event in events:
-        day = event.created_at.date().isoformat()
+        day = _algiers_day(event.created_at)
         bucket = daily_map.setdefault(
             day,
             {"date": day, "visitors": set(), "page_views": 0, "orders": 0, "revenue": 0},
@@ -185,7 +198,7 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
             bucket["visitors"].add(event.session_id)
 
     for order in orders:
-        day = order.created_at.date().isoformat()
+        day = _algiers_day(order.created_at)
         bucket = daily_map.setdefault(
             day,
             {"date": day, "visitors": set(), "page_views": 0, "orders": 0, "revenue": 0},
@@ -244,8 +257,9 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         item["revenue"] += order.total_price
 
     result = {
-        "from": start.date().isoformat(),
-        "to": end.date().isoformat(),
+        "from": display_from,
+        "to": display_to,
+        "timezone": "Africa/Algiers",
         "strict_ip_filter": strict_ip_filter_enabled(),
         "page_views": page_views,
         "product_views": product_views,
@@ -287,7 +301,17 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         )[:15],
         "recent_activity": _recent_activity(db, start, end),
     }
-    return enrich_metrics(db, result, start, end, orders, events, orders_for_status)
+    return enrich_metrics(
+        db,
+        result,
+        start,
+        end,
+        orders,
+        events,
+        orders_for_status,
+        date_from=display_from,
+        date_to=display_to,
+    )
 
 
 def _recent_activity(db: Session, start: datetime, end: datetime) -> list[dict]:

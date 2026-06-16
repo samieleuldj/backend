@@ -57,15 +57,15 @@
           <p class="muted small" id="pageSubtitle">كل الزوار والطلبيات محسوبين — تأكيد/توصيل من Google Sheet + DHD.</p>
         </div>
         <div class="preset-group">
-          <button class="preset active" data-range="today">Today</button>
-          <button class="preset" data-range="7">7 days</button>
-          <button class="preset" data-range="30">30 days</button>
+          <button class="preset active" data-range="today">اليوم</button>
+          <button class="preset" data-range="7">7 أيام</button>
+          <button class="preset" data-range="30">30 يوم</button>
         </div>
       </div>
 
       <nav class="tabs">
         <button type="button" class="tab active" data-tab="overview">Overview</button>
-        <button type="button" class="tab" data-tab="products">Products</button>
+        <button type="button" class="tab" data-tab="products">حساب المنتجات</button>
         <button type="button" class="tab" data-tab="orders">Orders</button>
         <button type="button" class="tab" data-tab="deliveries">التوصيل DHD</button>
         <button type="button" class="tab" data-tab="accounting">Comptabilité</button>
@@ -115,24 +115,26 @@
       </section>
 
       <section id="tab-products" class="tab-panel hidden">
+        <div class="metrics-grid" id="productSummaryCards"></div>
         <div class="card">
-          <h3>Performance par produit</h3>
-          <p class="muted small">Conversion, confirmation, delivery, ad spend, profit — per product.</p>
+          <h3>حساب كل منتج — الفترة المختارة</h3>
+          <p class="muted small" id="productPerfNote">
+            الطلبيات = créées في الفترة · الشحن/التسليم = تحدّثت حالتها في الفترة · الإعلانات = توزيع حسب عدد الطلبيات
+          </p>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Product</th>
-                  <th>Views</th>
-                  <th>Orders</th>
-                  <th>CVR</th>
-                  <th>Confirm %</th>
-                  <th>Delivery %</th>
-                  <th>Delivered Rev.</th>
-                  <th>Ad Spend</th>
-                  <th>Cost</th>
-                  <th>Net Profit</th>
-                  <th>Loss</th>
+                  <th>المنتج</th>
+                  <th>طلبيات</th>
+                  <th>حبات طلب</th>
+                  <th>حبات شحن</th>
+                  <th>حبات تسليم</th>
+                  <th>إيراد مسلّم</th>
+                  <th>تكلفة شراء</th>
+                  <th>إعلانات</th>
+                  <th>فائدة</th>
+                  <th>خسارة</th>
                 </tr>
               </thead>
               <tbody id="productPerfBody"></tbody>
@@ -264,6 +266,6 @@
 
   <div id="orderToastStack" class="order-toast-stack" aria-live="polite"></div>
 
-  <script src="/admin/app.js?v=12"></script>
+  <script src="/admin/app.js?v=13"></script>
 </body>
 </html>

@@ -233,3 +233,6 @@ tr.order-row-returned td { background: #fef2f2; }
   from { opacity: 0; transform: translateY(-12px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+.text-green { color: #0f7a45; }
+.text-red { color: #c0392b; }
