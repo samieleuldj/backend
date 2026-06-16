@@ -18,7 +18,7 @@ from .admin_schemas import (
     ProductCostUpdate,
 )
 from .analytics_service import default_date_range, get_metrics, valid_order_filter
-from .order_status import ALL_STATUSES
+from .order_status import ALL_STATUSES, apply_admin_status_filter
 from .product_cost_service import ensure_default_products
 from .sync_service import run_auto_sync
 from .database import SessionLocal
@@ -80,7 +80,7 @@ def admin_orders(
     )
 
     if status:
-        query = query.filter(models.Order.status == status)
+        query = apply_admin_status_filter(query, status)
 
     if search:
         term = f"%{search.strip()}%"

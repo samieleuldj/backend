@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from . import models
 from .dhd import get_dhd_order_status, map_dhd_status
 from .meta_ads_service import sync_meta_ad_spend
-from .order_status import is_delivered, is_returned
+from .order_status import canonical_status, is_cancelled, is_delivered, is_returned
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def sync_order_from_sheet(
         return None
 
     if status and status.strip():
-        order.status = status.strip()
+        order.status = canonical_status(status)
     if tracking_number is not None:
         tracking = tracking_number.strip()
         if tracking:
@@ -39,12 +39,47 @@ def sync_order_from_sheet(
     return order
 
 
+def sync_orders_bulk_from_sheet(
+    db: Session,
+    orders: list[dict],
+) -> dict:
+    synced = 0
+    missing: list[str] = []
+    for item in orders:
+        order_id = (item.get("order_id") or "").strip()
+        if not order_id:
+            continue
+        order = (
+            db.query(models.Order)
+            .filter(models.Order.order_id == order_id)
+            .first()
+        )
+        if not order:
+            missing.append(order_id)
+            continue
+
+        status = item.get("status")
+        if status and str(status).strip():
+            order.status = canonical_status(str(status))
+        tracking_number = item.get("tracking_number")
+        if tracking_number is not None:
+            tracking = str(tracking_number).strip()
+            if tracking:
+                order.tracking_number = tracking
+        order.updated_at = datetime.now(timezone.utc)
+        synced += 1
+
+    if synced:
+        db.commit()
+
+    return {"synced": synced, "missing": missing[:20]}
+
+
 def sync_dhd_order_statuses(db: Session, limit: int = 200) -> dict:
     token = (os.getenv("DHD_API_TOKEN") or "").strip()
     if not token:
         return {"ok": False, "reason": "dhd_not_configured", "updated": 0}
 
-    terminal_statuses = {"تم التسليم", "Delivered", "مرتجع", "Returned", "ملغى", "Cancelled"}
     orders = (
         db.query(models.Order)
         .filter(
@@ -61,9 +96,7 @@ def sync_dhd_order_statuses(db: Session, limit: int = 200) -> dict:
     errors: list[str] = []
 
     for order in orders:
-        if (order.status or "") in terminal_statuses:
-            continue
-        if is_delivered(order.status) or is_returned(order.status):
+        if is_delivered(order.status) or is_returned(order.status) or is_cancelled(order.status):
             continue
 
         tracking = (order.tracking_number or "").strip()
@@ -73,8 +106,11 @@ def sync_dhd_order_statuses(db: Session, limit: int = 200) -> dict:
         checked += 1
         try:
             raw = get_dhd_order_status(tracking)
-            new_status = map_dhd_status(raw)
-            if new_status and new_status != order.status:
+            mapped = map_dhd_status(raw)
+            if not mapped:
+                continue
+            new_status = canonical_status(mapped)
+            if new_status != order.status:
                 order.status = new_status
                 order.updated_at = datetime.now(timezone.utc)
                 updated += 1

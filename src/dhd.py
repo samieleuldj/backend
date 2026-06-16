@@ -215,6 +215,6 @@ def map_dhd_status(raw: dict[str, Any]) -> str | None:
         if any(word in text for word in ("livraison", "transit", "expédi", "expedi", "shipp", "شحن")):
             return "تم الشحن"
         if any(word in text for word in ("confirm", "مؤك")):
-            return "مؤكd"
+            return "مؤكد"
 
     return None

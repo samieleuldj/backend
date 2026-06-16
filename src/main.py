@@ -18,7 +18,7 @@ from .dhd import create_dhd_parcel
 from .migrations import ensure_schema_updates
 from .phone_utils import normalize_algerian_phone
 from .product_cost_service import ensure_default_products
-from .sync_service import run_auto_sync, sync_order_from_sheet
+from .sync_service import run_auto_sync, sync_order_from_sheet, sync_orders_bulk_from_sheet
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -215,6 +215,26 @@ def sync_order_from_sheet_endpoint(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return {"success": True, "order_id": order.order_id, "status": order.status}
+
+
+@app.post("/api/internal/orders-bulk-sync")
+def bulk_sync_orders_from_sheet_endpoint(
+    payload: schemas.OrderBulkSyncRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _verify_internal_secret(request)
+
+    items = [
+        {
+            "order_id": item.order_id,
+            "status": item.status,
+            "tracking_number": item.tracking_number,
+        }
+        for item in payload.orders
+    ]
+    result = sync_orders_bulk_from_sheet(db, items)
+    return {"success": True, **result}
 
 
 @app.post("/api/internal/run-sync")

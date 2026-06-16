@@ -67,3 +67,7 @@ class OrderSyncRequest(BaseModel):
     order_id: str
     status: Optional[str] = None
     tracking_number: Optional[str] = None
+
+
+class OrderBulkSyncRequest(BaseModel):
+    orders: list[OrderSyncRequest]

@@ -34,9 +34,9 @@ def _summarize_orders(orders: list[models.Order]) -> dict:
     all_orders = list(orders)
     active = [o for o in all_orders if is_active_order(o.status)]
     pending = [o for o in active if is_pending(o.status)]
-    confirmed = [o for o in all_orders if is_confirmed(o.status)]
+    confirmed_phone = [o for o in active if is_confirmed(o.status)]
     confirmed_or_beyond = [o for o in active if counts_for_confirmation_rate(o.status)]
-    shipped = [o for o in all_orders if is_shipped(o.status)]
+    shipped = [o for o in all_orders if is_shipped(o.status) and not is_delivered(o.status)]
     delivered = [o for o in all_orders if is_delivered(o.status)]
     cancelled = [o for o in all_orders if is_cancelled(o.status)]
     returned = [o for o in all_orders if is_returned(o.status)]
@@ -45,8 +45,12 @@ def _summarize_orders(orders: list[models.Order]) -> dict:
     confirmed_revenue = sum(_order_revenue(o) for o in confirmed_or_beyond)
     delivered_revenue = sum(_order_revenue(o) for o in delivered)
 
+    awaiting_contact = len(pending)
+    confirmed_count = len(confirmed_or_beyond)
     confirmation_rate = (
-        round((len(confirmed_or_beyond) / len(active)) * 100, 2) if active else 0
+        round((confirmed_count / (confirmed_count + awaiting_contact)) * 100, 2)
+        if (confirmed_count + awaiting_contact)
+        else 0
     )
     delivery_rate = round((len(delivered) / len(confirmed_or_beyond)) * 100, 2) if confirmed_or_beyond else 0
 
@@ -54,6 +58,7 @@ def _summarize_orders(orders: list[models.Order]) -> dict:
         "orders_total": len(all_orders),
         "orders_pending": len(pending),
         "orders_confirmed": len(confirmed_or_beyond),
+        "orders_confirmed_phone": len(confirmed_phone),
         "orders_shipped": len(shipped),
         "orders_delivered": len(delivered),
         "orders_cancelled": len(cancelled),
