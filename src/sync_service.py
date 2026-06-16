@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from . import models
-from .dhd import get_dhd_order_status, map_dhd_status
+from .dhd import fetch_dhd_orders, find_dhd_order, map_dhd_status
 from .meta_ads_service import sync_meta_ad_spend
 from .order_status import canonical_status, is_cancelled, is_delivered, is_returned
 
@@ -95,23 +95,59 @@ def sync_dhd_order_statuses(db: Session, limit: int = 200) -> dict:
     checked = 0
     errors: list[str] = []
 
+    try:
+        dhd_rows = fetch_dhd_orders(max_pages=5, per_page=100)
+    except Exception as exc:
+        logger.warning("DHD bulk fetch failed: %s", exc)
+        dhd_rows = []
+
+    dhd_by_tracking = {
+        str(row.get("tracking") or "").strip(): row
+        for row in dhd_rows
+        if str(row.get("tracking") or "").strip()
+    }
+    dhd_by_reference = {
+        str(row.get("reference") or "").strip(): row
+        for row in dhd_rows
+        if str(row.get("reference") or "").strip()
+    }
+
     for order in orders:
         if is_delivered(order.status) or is_returned(order.status) or is_cancelled(order.status):
             continue
 
         tracking = (order.tracking_number or "").strip()
-        if not tracking:
+        reference = (order.order_id or "").strip()
+        if not tracking and not reference:
             continue
 
         checked += 1
         try:
-            raw = get_dhd_order_status(tracking)
+            raw = (
+                dhd_by_tracking.get(tracking)
+                or dhd_by_reference.get(reference)
+                or find_dhd_order(tracking=tracking, reference=reference)
+            )
+            if not raw:
+                errors.append(f"{order.order_id}: not found in DHD")
+                continue
+
             mapped = map_dhd_status(raw)
             if not mapped:
                 continue
+
             new_status = canonical_status(mapped)
+            new_tracking = str(raw.get("tracking") or tracking or "").strip()
+            changed = False
+
+            if new_tracking and new_tracking != (order.tracking_number or "").strip():
+                order.tracking_number = new_tracking
+                changed = True
             if new_status != order.status:
                 order.status = new_status
+                changed = True
+
+            if changed:
                 order.updated_at = datetime.now(timezone.utc)
                 updated += 1
         except Exception as exc:

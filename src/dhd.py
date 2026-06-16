@@ -165,56 +165,130 @@ def create_dhd_parcel(order: dict[str, Any]) -> dict[str, Any]:
     return {"tracking": tracking, "response": data}
 
 
-def get_dhd_order_status(tracking: str) -> dict[str, Any]:
+def _extract_order_row(payload: Any) -> dict[str, Any] | None:
+    if isinstance(payload, dict):
+        if payload.get("tracking") or payload.get("reference"):
+            return payload
+        nested = payload.get("data")
+        if isinstance(nested, dict) and (nested.get("tracking") or nested.get("reference")):
+            return nested
+        if isinstance(nested, list):
+            for item in nested:
+                if isinstance(item, dict) and (item.get("tracking") or item.get("reference")):
+                    return item
+    if isinstance(payload, list):
+        for item in payload:
+            if isinstance(item, dict) and (item.get("tracking") or item.get("reference")):
+                return item
+    return None
+
+
+def _matches_dhd_lookup(row: dict[str, Any], *, tracking: str = "", reference: str = "") -> bool:
+    row_tracking = str(row.get("tracking") or "").strip()
+    row_reference = str(row.get("reference") or "").strip()
+    if tracking and row_tracking == tracking:
+        return True
+    if reference and row_reference and row_reference == reference:
+        return True
+    return False
+
+
+def fetch_dhd_orders(*, max_pages: int = 5, per_page: int = 100) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for page in range(1, max_pages + 1):
+        response, data = _dhd_request(
+            "GET",
+            "/api/v1/get/orders",
+            params={"page": page, "per_page": per_page},
+        )
+        if response.status_code >= 400 or data.get("success") is False:
+            break
+
+        batch = data.get("data")
+        if not isinstance(batch, list) or not batch:
+            break
+
+        rows.extend(item for item in batch if isinstance(item, dict))
+        last_page = int(data.get("last_page") or page)
+        if page >= last_page:
+            break
+
+    return rows
+
+
+def find_dhd_order(*, tracking: str = "", reference: str = "") -> dict[str, Any] | None:
     tracking = (tracking or "").strip()
-    if not tracking:
-        raise ValueError("رقم التتبع مطلوب")
+    reference = (reference or "").strip()
+    if not tracking and not reference:
+        return None
 
-    attempts = [
-        ("/api/v1/get/order", {"tracking": tracking}),
-        ("/api/v1/get/order", {"tracking_number": tracking}),
-        (f"/api/v1/get/order/{tracking}", None),
-        (f"/api/v1/order/{tracking}", None),
-        ("/api/v1/get/orders", {"tracking": tracking}),
-    ]
+    rows = fetch_dhd_orders()
+    for row in rows:
+        if _matches_dhd_lookup(row, tracking=tracking, reference=reference):
+            return row
+    return None
 
-    last_error = "لا يوجد رد من DHD"
-    for path, params in attempts:
-        try:
-            response, data = _dhd_request("GET", path, params=params)
-            if response.status_code >= 400 or data.get("success") is False:
-                last_error = str(data.get("message") or response.text[:200])
-                continue
-            payload = data.get("data") if isinstance(data.get("data"), dict) else data
-            if payload:
-                return payload
-        except ValueError as exc:
-            last_error = str(exc)
 
-    raise ValueError(last_error)
+def get_dhd_order_status(tracking: str, reference: str | None = None) -> dict[str, Any]:
+    tracking = (tracking or "").strip()
+    reference = (reference or "").strip()
+    if not tracking and not reference:
+        raise ValueError("رقم التتبع أو مرجع الطلبية مطلوب")
+
+    row = find_dhd_order(tracking=tracking, reference=reference)
+    if row:
+        return row
+
+    raise ValueError(f"الطلبية غير موجودة في DHD: {tracking or reference}")
 
 
 def map_dhd_status(raw: dict[str, Any]) -> str | None:
-    for key in ("status", "statut", "etat", "state", "situation", "last_status"):
-        value = raw.get(key)
-        if value is None and isinstance(raw.get("data"), dict):
-            value = raw["data"].get(key)
-        if value is None:
-            continue
+    row = _extract_order_row(raw)
+    if not row:
+        return None
 
-        text = str(value).strip().lower()
+    global_status = str(row.get("global_status") or "").strip().lower()
+    status = str(row.get("status") or "").strip().lower()
+    livred_at = row.get("livred_at")
+    return_id = row.get("return_id")
+    return_asked_at = row.get("return_asked_at")
+
+    if livred_at or global_status == "livre":
+        return "تم التسليم"
+
+    if global_status == "retour" or return_id or return_asked_at or status.startswith("retour"):
+        return "مرتجع"
+
+    if "annul" in status or "cancel" in status or "ملغ" in status:
+        return "ملغي"
+
+    if global_status == "en_process":
+        return "تم الشحن"
+
+    shipped_markers = (
+        "vers_wilaya",
+        "prete_a_expedier",
+        "en_livraison",
+        "expedie",
+        "expédi",
+        "transit",
+        "dispatch",
+        "livraison",
+        "shipp",
+        "شحن",
+    )
+    if any(marker in status for marker in shipped_markers):
+        return "تم الشحن"
+
+    for key in ("status", "statut", "etat", "state", "situation", "last_status", "global_status"):
+        text = str(row.get(key) or "").strip().lower()
         if not text:
             continue
-
-        if any(word in text for word in ("livré", "livre", "delivered", "تسليم")):
+        if any(word in text for word in ("delivered", "تسليم", "livré")):
+            return "تم التسليم"
+        if "livre" in text and "livraison" not in text:
             return "تم التسليم"
         if any(word in text for word in ("retour", "return", "مرتج")):
             return "مرتجع"
-        if any(word in text for word in ("annul", "cancel", "ملغ")):
-            return "ملغى"
-        if any(word in text for word in ("livraison", "transit", "expédi", "expedi", "shipp", "شحن")):
-            return "تم الشحن"
-        if any(word in text for word in ("confirm", "مؤك")):
-            return "مؤكد"
 
     return None
