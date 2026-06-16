@@ -746,8 +746,13 @@ $('runSyncBtn').addEventListener('click', async () => {
   btn.textContent = 'Syncing...';
   try {
     const result = await api('/api/admin/sync/run', { method: 'POST' });
-    alert(`Sync OK\nMeta: ${result.meta?.synced || 0} days\nDHD: ${result.dhd?.updated || 0} updated`);
+    alert(
+      `Sync OK\n` +
+      `DHD: ${result.dhd?.updated || 0} statuts mis à jour\n\n` +
+      `Google Sheet: Confort DZ → مزامنة التسليم من DHD + مزامنة اليوم → Admin`
+    );
     await loadMetrics();
+    await loadOrders();
   } catch (err) {
     showError(err.message);
   } finally {

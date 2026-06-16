@@ -31,7 +31,11 @@ def is_shipped(status: str | None) -> bool:
 
 
 def is_delivered(status: str | None) -> bool:
-    return _norm(status) in DELIVERED
+    s = _norm(status)
+    if s in DELIVERED:
+        return True
+    raw = (status or "").strip()
+    return "تسليم" in raw and "شحن" not in raw
 
 
 def is_returned(status: str | None) -> bool:
