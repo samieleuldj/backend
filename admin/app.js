@@ -401,23 +401,28 @@ function renderOverview() {
   const filterNote = m.strict_ip_filter ? 'VPN filter ON' : 'توقيت الجزائر';
   if ($('pageSubtitle')) {
     $('pageSubtitle').textContent = rangeLabel
-      ? `${rangeLabel} — طلبيات جديدة + تسليم/شحن محدّث في الفترة`
+      ? `الفترة: ${rangeLabel} — كل الطلبيات والإحصائيات في هاد الفترة`
       : `${filterNote} — Sheet + DHD sync`;
   }
 
   const cards = [
-    ['طلبيات جديدة', acc.orders_total || 0],
-    ['حبات طلب', acc.units_ordered || 0],
-    ['حبات شحن', acc.units_shipped || 0],
-    ['حبات تسلّم', acc.units_delivered || 0],
-    ['مؤكّد', acc.orders_confirmed || 0],
-    ['مسلّم', acc.orders_delivered || 0],
-    ['نسبة التأكيد', pct(acc.confirmation_rate)],
-    ['نسبة التسليم', pct(acc.delivery_rate)],
-    ['زوار', m.unique_visitors || 0],
-    ['إعلانات', money(acc.ad_spend_total || 0)],
-    ['ربح صافي', money(acc.net_profit || 0)],
-    ['خسارة', money(acc.loss || 0)],
+    ['Total Orders', acc.orders_total || 0],
+    ['Confirmation Rate', pct(acc.confirmation_rate)],
+    ['Delivery Rate', pct(acc.delivery_rate)],
+    ['Conversion Rate', pct(m.conversion_rate)],
+    ['Checkout CVR', pct(m.checkout_cvr)],
+    ['Unique Visitors', m.unique_visitors || 0],
+    ['Page Views', m.page_views || 0],
+    ['Product Views', m.product_views || 0],
+    ['Pending', acc.orders_pending || 0],
+    ['Confirmed+', acc.orders_confirmed || 0],
+    ['Shipped', acc.orders_shipped || 0],
+    ['Delivered', acc.orders_delivered || 0],
+    ['Cancelled', acc.orders_cancelled || 0],
+    ['AOV', money(m.avg_order_value)],
+    ['Gross Profit', money(acc.gross_profit || 0)],
+    ['Ad Spend', money(acc.ad_spend_total || 0)],
+    ['Net Profit', money(acc.net_profit || 0)],
   ];
 
   $('metricsGrid').innerHTML = cards.map(([label, value]) => `
@@ -464,8 +469,8 @@ function renderProductPerformance() {
 
   if ($('productPerfNote')) {
     $('productPerfNote').textContent = range
-      ? `${range} — طلبيات créées + شحن/تسليم محدّث · إعلانات موزّعة حسب الطلبيات`
-      : 'اختر الفترة من فوق';
+      ? `${range} — شحال بعثنا، شحال ليفرينا، إعلانات، فائدة/خسارة لكل منتج`
+      : 'اختر الفترة من فوق (7 أيام افتراضياً)';
   }
 
   if ($('productSummaryCards')) {
@@ -704,10 +709,10 @@ async function refreshAll() {
 }
 
 async function bootstrap() {
-  setRangeDays(0);
+  setRangeDays(7);
   if ($('adDate')) $('adDate').value = formatAlgiersDate(new Date());
   document.querySelectorAll('.preset').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.range === 'today');
+    btn.classList.toggle('active', btn.dataset.range === '7');
   });
   updateRangeUi();
   setLoading(true);

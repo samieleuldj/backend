@@ -33,20 +33,6 @@ def _order_qty(order: models.Order) -> int:
     return max(int(order.quantity or 1), 1)
 
 
-def _activity_ts(order: models.Order) -> datetime | None:
-    ts = order.updated_at or order.created_at
-    if ts is None:
-        return None
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    return ts
-
-
-def _in_period(order: models.Order, start: datetime, end: datetime) -> bool:
-    ts = _activity_ts(order)
-    return ts is not None and start <= ts <= end
-
-
 def _algiers_day(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
@@ -57,34 +43,22 @@ def _product_key(order: models.Order) -> str:
     return (order.product_id or order.product_name or "unknown").strip()
 
 
-def _summarize_orders(
-    orders: list[models.Order],
-    status_orders: list[models.Order],
-    start: datetime,
-    end: datetime,
-) -> dict:
+def _summarize_orders(orders: list[models.Order]) -> dict:
     all_orders = list(orders)
-    activity = list(status_orders)
     active = [o for o in all_orders if is_active_order(o.status)]
     pending = [o for o in active if is_pending(o.status)]
     confirmed_phone = [o for o in active if is_confirmed(o.status)]
     confirmed_or_beyond = [o for o in active if counts_for_confirmation_rate(o.status)]
-    shipped = [
-        o
-        for o in activity
-        if is_shipped(o.status) and not is_delivered(o.status) and _in_period(o, start, end)
-    ]
-    delivered = [o for o in activity if is_delivered(o.status) and _in_period(o, start, end)]
+    shipped = [o for o in all_orders if is_shipped(o.status) and not is_delivered(o.status)]
+    delivered = [o for o in all_orders if is_delivered(o.status)]
     cancelled = [o for o in all_orders if is_cancelled(o.status)]
-    returned = [o for o in activity if is_returned(o.status) and _in_period(o, start, end)]
+    returned = [o for o in all_orders if is_returned(o.status)]
 
     total_revenue = sum(_order_revenue(o) for o in active)
     confirmed_revenue = sum(_order_revenue(o) for o in confirmed_or_beyond)
     delivered_revenue = sum(_order_revenue(o) for o in delivered)
     units_ordered = sum(_order_qty(o) for o in all_orders)
-    units_shipped = sum(
-        _order_qty(o) for o in activity if is_shipped(o.status) and _in_period(o, start, end)
-    )
+    units_shipped = sum(_order_qty(o) for o in all_orders if is_shipped(o.status))
     units_delivered = sum(_order_qty(o) for o in delivered)
 
     awaiting_contact = len(pending)
@@ -135,14 +109,11 @@ def _get_ad_spend_rows(db: Session, date_from: str, date_to: str) -> list[models
 def _accounting_summary(
     db: Session,
     orders: list[models.Order],
-    status_orders: list[models.Order],
     ad_rows: list[models.DailyAdSpend],
-    start: datetime,
-    end: datetime,
 ) -> dict:
     cogs_ratio = get_cogs_ratio()
-    order_stats = _summarize_orders(orders, status_orders, start, end)
-    delivered = [o for o in status_orders if is_delivered(o.status) and _in_period(o, start, end)]
+    order_stats = _summarize_orders(orders)
+    delivered = [o for o in orders if is_delivered(o.status)]
     delivered_revenue = order_stats["revenue_delivered"]
     product_cost = round(sum(order_product_cost(db, order) for order in delivered), 2)
     gross_profit = round(delivered_revenue - product_cost, 2)
@@ -165,11 +136,8 @@ def _accounting_summary(
 def _build_product_performance(
     db: Session,
     orders: list[models.Order],
-    status_orders: list[models.Order],
     events: list[models.AnalyticsEvent],
     ad_spend_total: float,
-    start: datetime,
-    end: datetime,
 ) -> list[dict]:
     buckets: dict[str, dict] = {}
 
@@ -186,7 +154,6 @@ def _build_product_performance(
                 "units_delivered": 0,
                 "confirmed": 0,
                 "delivered": 0,
-                "shipped": 0,
                 "cancelled": 0,
                 "returned": 0,
                 "revenue": 0.0,
@@ -213,7 +180,6 @@ def _build_product_performance(
                 "units_delivered": 0,
                 "confirmed": 0,
                 "delivered": 0,
-                "shipped": 0,
                 "cancelled": 0,
                 "returned": 0,
                 "revenue": 0.0,
@@ -225,28 +191,21 @@ def _build_product_performance(
 
     for order in orders:
         bucket = get_bucket(order)
+        qty = _order_qty(order)
         bucket["orders"] += 1
-        bucket["units_ordered"] += _order_qty(order)
+        bucket["units_ordered"] += qty
         bucket["revenue"] += _order_revenue(order)
         if counts_for_confirmation_rate(order.status):
             bucket["confirmed"] += 1
-        if is_cancelled(order.status):
-            bucket["cancelled"] += 1
-
-    for order in status_orders:
-        if not _in_period(order, start, end):
-            continue
-        bucket = get_bucket(order)
-        qty = _order_qty(order)
         if is_shipped(order.status):
             bucket["units_shipped"] += qty
-        if is_shipped(order.status) and not is_delivered(order.status):
-            bucket["shipped"] += 1
         if is_delivered(order.status):
             bucket["delivered"] += 1
             bucket["units_delivered"] += qty
             bucket["delivered_revenue"] += _order_revenue(order)
             bucket["product_cost"] += order_product_cost(db, order)
+        if is_cancelled(order.status):
+            bucket["cancelled"] += 1
         if is_returned(order.status):
             bucket["returned"] += 1
 
@@ -302,7 +261,7 @@ def enrich_metrics(
     to_date = date_to or metrics.get("to") or _algiers_day(end)
     ad_rows = _get_ad_spend_rows(db, from_date, to_date)
     status_orders = orders_for_status or orders
-    accounting = _accounting_summary(db, orders, status_orders, ad_rows, start, end)
+    accounting = _accounting_summary(db, status_orders, ad_rows)
     event_rows = events or []
 
     daily_ad: dict[str, float] = {}
@@ -315,26 +274,15 @@ def enrich_metrics(
         key = _algiers_day(order.created_at)
         daily_orders.setdefault(key, []).append(order)
 
-    daily_activity: dict[str, list] = {}
-    for order in status_orders:
-        ts = _activity_ts(order)
-        if not ts or not (start <= ts <= end):
-            continue
-        key = _algiers_day(ts)
-        daily_activity.setdefault(key, []).append(order)
-
     daily_pnl = []
-    all_days = sorted(set(list(daily_ad.keys()) + list(daily_orders.keys()) + list(daily_activity.keys())))
+    all_days = sorted(set(list(daily_ad.keys()) + list(daily_orders.keys())))
     for day in all_days:
         day_orders = daily_orders.get(day, [])
-        day_activity = daily_activity.get(day, [])
-        delivered_rev = sum(
-            _order_revenue(o) for o in day_activity if is_delivered(o.status)
-        )
+        delivered_rev = sum(_order_revenue(o) for o in day_orders if is_delivered(o.status))
         total_rev = sum(_order_revenue(o) for o in day_orders)
         spend = round(daily_ad.get(day, 0), 2)
         cost = round(
-            sum(order_product_cost(db, o) for o in day_activity if is_delivered(o.status)),
+            sum(order_product_cost(db, o) for o in day_orders if is_delivered(o.status)),
             2,
         )
         gross = round(delivered_rev - cost, 2)
@@ -343,7 +291,7 @@ def enrich_metrics(
             {
                 "date": day,
                 "orders": len(day_orders),
-                "units_delivered": sum(_order_qty(o) for o in day_activity if is_delivered(o.status)),
+                "units_delivered": sum(_order_qty(o) for o in day_orders if is_delivered(o.status)),
                 "revenue_total": round(total_rev, 2),
                 "revenue_delivered": round(delivered_rev, 2),
                 "ad_spend": spend,
@@ -375,11 +323,8 @@ def enrich_metrics(
     product_performance = _build_product_performance(
         db,
         orders,
-        status_orders,
         event_rows,
         accounting["ad_spend_total"],
-        start,
-        end,
     )
 
     metrics.update(
