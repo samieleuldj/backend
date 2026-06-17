@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Confort DZ — Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/admin/styles.css?v=8" />
+  <link rel="stylesheet" href="/admin/styles.css?v=9" />
 </head>
 <body>
   <div id="loginView" class="login-wrap">
@@ -57,11 +57,12 @@
           <p class="muted small" id="pageSubtitle">كل الزوار والطلبيات محسوبين — تأكيد/توصيل من Google Sheet + DHD.</p>
         </div>
         <div class="preset-group">
-          <button class="preset" data-range="today">اليوم</button>
-          <button class="preset active" data-range="7">7 أيام</button>
-          <button class="preset" data-range="30">30 يوم</button>
+          <button type="button" class="preset" data-range="today">اليوم</button>
+          <button type="button" class="preset active" data-range="7">7 أيام</button>
+          <button type="button" class="preset" data-range="30">30 يوم</button>
         </div>
       </div>
+      <p id="rangeDisplay" class="range-display"></p>
 
       <nav class="tabs">
         <button type="button" class="tab active" data-tab="overview">Overview</button>
@@ -266,6 +267,6 @@
 
   <div id="orderToastStack" class="order-toast-stack" aria-live="polite"></div>
 
-  <script src="/admin/app.js?v=15"></script>
+  <script src="/admin/app.js?v=16"></script>
 </body>
 </html>

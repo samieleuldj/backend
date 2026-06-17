@@ -10,6 +10,7 @@ const state = {
   products: [],
   selectedOrderId: null,
   currentTab: 'overview',
+  rangePreset: '7',
   loading: false,
   orderAlerts: {
     enabled: localStorage.getItem('confortdz_order_alerts') !== 'off',
@@ -75,32 +76,90 @@ function setRangeDays(days) {
   if (days === 0) {
     $('dateFrom').value = today;
     $('dateTo').value = today;
-    return;
+    return { from: today, to: today };
   }
-  $('dateFrom').value = shiftIsoDate(today, -(days - 1));
+  const from = shiftIsoDate(today, -(days - 1));
+  $('dateFrom').value = from;
   $('dateTo').value = today;
+  return { from, to: today };
 }
 
-function getSelectedRangeLabel() {
-  const from = $('dateFrom')?.value;
-  const to = $('dateTo')?.value;
-  if (!from || !to) return '';
-  if (from === to) return `اليوم (${from}) — Algeria`;
-  return `${from} → ${to}`;
+function syncDatesFromPreset() {
+  if (state.rangePreset === 'custom') {
+    return getQueryDateRange();
+  }
+  if (state.rangePreset === 'today') return setRangeDays(0);
+  if (state.rangePreset === '30') return setRangeDays(30);
+  return setRangeDays(7);
 }
 
-function updateRangeUi() {
-  const label = getSelectedRangeLabel();
+function applyRangePreset(preset) {
+  state.rangePreset = preset;
+  const range = syncDatesFromPreset();
+  document.querySelectorAll('.preset').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.range === preset);
+  });
+  updateRangeUi(range);
+  return range;
+}
+
+function getQueryDateRange() {
+  const from = ($('dateFrom')?.value || '').trim();
+  const to = ($('dateTo')?.value || '').trim();
+  if (from && to) return { from, to };
+  const today = formatAlgiersDate(new Date());
+  return { from: today, to: today };
+}
+
+function detectPresetFromDates(from, to) {
+  const today = formatAlgiersDate(new Date());
+  if (from === today && to === today) return 'today';
+  if (to === today && from === shiftIsoDate(today, -6)) return '7';
+  if (to === today && from === shiftIsoDate(today, -29)) return '30';
+  return 'custom';
+}
+
+function getSelectedRangeLabel(from, to) {
+  const start = from || $('dateFrom')?.value;
+  const end = to || $('dateTo')?.value;
+  if (!start || !end) return '';
+  if (start === end) return `اليوم (${start})`;
+  return `${start} → ${end}`;
+}
+
+function updateRangeUi(range) {
+  const from = range?.from || $('dateFrom')?.value;
+  const to = range?.to || $('dateTo')?.value;
+  const label = getSelectedRangeLabel(from, to);
+  const singleDay = from && to && from === to;
+
+  const rangeDisplay = $('rangeDisplay');
+  if (rangeDisplay) {
+    rangeDisplay.textContent = singleDay
+      ? `تقرير اليوم: ${from}`
+      : label
+        ? `تقرير الفترة: ${label}`
+        : '';
+  }
+
   const ordersLabel = $('ordersRangeLabel');
   if (ordersLabel) ordersLabel.textContent = label;
+
+  if ($('pageSubtitle') && (state.currentTab === 'overview' || state.currentTab === 'products' || state.currentTab === 'accounting')) {
+    $('pageSubtitle').textContent = singleDay
+      ? `اليوم (${from}) — طلبيات créées اليوم فقط`
+      : label
+        ? `الفترة: ${label} — كل الطلبيات في هاد الفترة`
+        : 'اختر الفترة من فوق';
+  }
   if (state.currentTab === 'orders' && $('pageSubtitle')) {
     $('pageSubtitle').textContent = label
-      ? `الفترة: ${label} — الطلبيات والإحصائيات حسب توقيت الجزائر`
-      : 'الطلبيات والإحصائيات حسب توقيت الجزائر';
+      ? `الفترة: ${label} — الطلبيات حسب توقيت الجزائر`
+      : 'الطلبيات حسب توقيت الجزائر';
   }
   if (state.currentTab === 'deliveries' && $('pageSubtitle')) {
     $('pageSubtitle').textContent = label
-      ? `DHD — ${label} — تم التسليم (created أو updated في الفترة)`
+      ? `DHD — ${label} — تم التسليم`
       : 'DHD — تم التسليم';
   }
 }
@@ -333,7 +392,9 @@ async function login(username, password) {
 }
 
 function queryRange() {
-  return `from=${$('dateFrom').value}&to=${$('dateTo').value}`;
+  syncDatesFromPreset();
+  const { from, to } = getQueryDateRange();
+  return `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
 }
 
 async function loadStatuses() {
@@ -344,11 +405,12 @@ async function loadStatuses() {
 }
 
 async function loadMetrics() {
+  const range = syncDatesFromPreset();
   state.metrics = await api(`/api/admin/metrics?${queryRange()}`);
-  renderOverview();
-  renderProductPerformance();
+  renderOverview(range);
+  renderProductPerformance(range);
   renderAccounting();
-  updateRangeUi();
+  updateRangeUi(range);
 }
 
 async function loadProducts() {
@@ -357,6 +419,7 @@ async function loadProducts() {
 }
 
 async function loadOrders() {
+  syncDatesFromPreset();
   const from = $('dateFrom').value;
   const to = $('dateTo').value;
   if (!from || !to) {
@@ -373,6 +436,7 @@ async function loadOrders() {
 }
 
 async function loadDeliveries() {
+  syncDatesFromPreset();
   const from = $('dateFrom').value;
   const to = $('dateTo').value;
   if (!from || !to) {
@@ -386,12 +450,12 @@ async function loadDeliveries() {
   updateRangeUi();
 }
 
-function renderOverview() {
+function renderOverview(range) {
   const m = state.metrics;
   if (!m) return;
   const acc = m.accounting || {};
-  const from = $('dateFrom')?.value;
-  const to = $('dateTo')?.value;
+  const from = range?.from || $('dateFrom')?.value;
+  const to = range?.to || $('dateTo')?.value;
 
   $('mDeliveredRevenue').textContent = money(acc.revenue_delivered || 0);
   $('mNetProfit').textContent = `صافي الربح ${money(acc.net_profit || 0)}`;
@@ -399,15 +463,14 @@ function renderOverview() {
   $('mRoas').textContent = acc.roas || 0;
   if ($('mLoss')) $('mLoss').textContent = money(acc.loss || 0);
 
-  const rangeLabel = getSelectedRangeLabel();
-  const filterNote = m.strict_ip_filter ? 'VPN filter ON' : 'توقيت الجزائر';
+  const rangeLabel = getSelectedRangeLabel(from, to);
   if ($('pageSubtitle')) {
     const singleDay = from === to;
     $('pageSubtitle').textContent = singleDay
       ? `اليوم (${from}) — طلبيات créées اليوم فقط`
       : rangeLabel
         ? `الفترة: ${rangeLabel} — كل الطلبيات في هاد الفترة`
-        : `${filterNote} — Sheet + DHD sync`;
+        : 'اختر الفترة من فوق';
   }
 
   const cards = [
@@ -467,15 +530,15 @@ function renderOverview() {
   `).join('') || '<tr><td colspan="7">No P&amp;L data</td></tr>';
 }
 
-function renderProductPerformance() {
+function renderProductPerformance(range) {
   const rows = state.metrics?.product_performance || [];
   const acc = state.metrics?.accounting || {};
-  const range = getSelectedRangeLabel();
+  const label = getSelectedRangeLabel(range?.from, range?.to);
 
   if ($('productPerfNote')) {
-    $('productPerfNote').textContent = range
-      ? `${range} — شحال بعثنا، شحال ليفرينا، إعلانات، فائدة/خسارة لكل منتج`
-      : 'اختر الفترة من فوق (7 أيام افتراضياً)';
+    $('productPerfNote').textContent = label
+      ? `${label} — شحال بعثنا، شحال ليفرينا، إعلانات، فائدة/خسارة لكل منتج`
+      : 'اختر الفترة من فوق';
   }
 
   if ($('productSummaryCards')) {
@@ -655,9 +718,11 @@ const TAB_TITLES = {
 function switchTab(tab) {
   state.currentTab = tab;
   if (tab === 'deliveries') {
-    setRangeDays(30);
+    applyRangePreset('30');
+  } else if (state.rangePreset !== 'custom') {
+    syncDatesFromPreset();
     document.querySelectorAll('.preset').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.range === '30');
+      btn.classList.toggle('active', btn.dataset.range === state.rangePreset);
     });
   }
   document.querySelectorAll('.tab').forEach((el) => {
@@ -669,7 +734,7 @@ function switchTab(tab) {
   const panel = $(`tab-${tab}`);
   if (panel) panel.classList.remove('hidden');
   $('pageTitle').textContent = TAB_TITLES[tab] || 'Admin';
-  updateRangeUi();
+  updateRangeUi(getQueryDateRange());
   refreshCurrentTab();
 }
 
@@ -714,12 +779,8 @@ async function refreshAll() {
 }
 
 async function bootstrap() {
-  setRangeDays(7);
+  applyRangePreset('7');
   if ($('adDate')) $('adDate').value = formatAlgiersDate(new Date());
-  document.querySelectorAll('.preset').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.range === '7');
-  });
-  updateRangeUi();
   setLoading(true);
   showError('');
   try {
@@ -805,15 +866,18 @@ $('applyFilters').addEventListener('click', refreshAll);
   const input = $(id);
   if (!input) return;
   input.addEventListener('change', () => {
-    document.querySelectorAll('.preset').forEach((btn) => btn.classList.remove('active'));
+    const { from, to } = getQueryDateRange();
+    state.rangePreset = detectPresetFromDates(from, to);
+    document.querySelectorAll('.preset').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.range === state.rangePreset);
+    });
+    updateRangeUi({ from, to });
     refreshAll();
   });
 });
 document.querySelectorAll('.preset').forEach((btn) => {
   btn.addEventListener('click', async () => {
-    document.querySelectorAll('.preset').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    setRangeDays(btn.dataset.range === 'today' ? 0 : Number(btn.dataset.range));
+    applyRangePreset(btn.dataset.range);
     await refreshAll();
   });
 });
