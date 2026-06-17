@@ -164,18 +164,6 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         .all()
     )
 
-    orders_for_status = (
-        db.query(models.Order)
-        .filter(
-            or_(
-                and_(models.Order.created_at >= start, models.Order.created_at <= end),
-                and_(models.Order.updated_at >= start, models.Order.updated_at <= end),
-            ),
-            valid_order_filter(),
-        )
-        .all()
-    )
-
     page_views = sum(1 for event in events if event.event_type == "page_view")
     product_views = sum(1 for event in events if event.event_type == "product_view")
     checkout_starts = sum(1 for event in events if event.event_type == "checkout_start")
@@ -260,6 +248,7 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         "from": display_from,
         "to": display_to,
         "timezone": "Africa/Algiers",
+        "single_day": display_from == display_to,
         "strict_ip_filter": strict_ip_filter_enabled(),
         "page_views": page_views,
         "product_views": product_views,
@@ -308,7 +297,6 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         end,
         orders,
         events,
-        orders_for_status,
         date_from=display_from,
         date_to=display_to,
     )

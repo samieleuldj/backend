@@ -260,8 +260,8 @@ def enrich_metrics(
     from_date = date_from or metrics.get("from") or _algiers_day(start)
     to_date = date_to or metrics.get("to") or _algiers_day(end)
     ad_rows = _get_ad_spend_rows(db, from_date, to_date)
-    status_orders = orders_for_status or orders
-    accounting = _accounting_summary(db, status_orders, ad_rows)
+    # Use orders created in the period — not updated_at (DHD sync would inflate "Today").
+    accounting = _accounting_summary(db, orders, ad_rows)
     event_rows = events or []
 
     daily_ad: dict[str, float] = {}
@@ -304,7 +304,7 @@ def enrich_metrics(
         )
 
     by_channel: dict[str, dict] = {}
-    for order in status_orders:
+    for order in orders:
         channel = (order.utm_source or "direct").strip() or "direct"
         item = by_channel.setdefault(
             channel,

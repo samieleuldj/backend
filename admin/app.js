@@ -390,6 +390,8 @@ function renderOverview() {
   const m = state.metrics;
   if (!m) return;
   const acc = m.accounting || {};
+  const from = $('dateFrom')?.value;
+  const to = $('dateTo')?.value;
 
   $('mDeliveredRevenue').textContent = money(acc.revenue_delivered || 0);
   $('mNetProfit').textContent = `صافي الربح ${money(acc.net_profit || 0)}`;
@@ -400,9 +402,12 @@ function renderOverview() {
   const rangeLabel = getSelectedRangeLabel();
   const filterNote = m.strict_ip_filter ? 'VPN filter ON' : 'توقيت الجزائر';
   if ($('pageSubtitle')) {
-    $('pageSubtitle').textContent = rangeLabel
-      ? `الفترة: ${rangeLabel} — كل الطلبيات والإحصائيات في هاد الفترة`
-      : `${filterNote} — Sheet + DHD sync`;
+    const singleDay = from === to;
+    $('pageSubtitle').textContent = singleDay
+      ? `اليوم (${from}) — طلبيات créées اليوم فقط`
+      : rangeLabel
+        ? `الفترة: ${rangeLabel} — كل الطلبيات في هاد الفترة`
+        : `${filterNote} — Sheet + DHD sync`;
   }
 
   const cards = [
