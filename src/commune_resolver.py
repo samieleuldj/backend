@@ -27,7 +27,9 @@ COMMUNE_ALIASES = {
     "16|الروiba": "Rouiba",
     "16|الرويبة": "Rouiba",
     "16|القبة": "Kouba",
-    "16|الكاليتوس": "Les Eucalyptus",
+    "16|بابا حسن": "Baba Hesen",
+    "9|بني تامو": "Beni Tamou",
+    "9|بنى تامو": "Beni Tamou",
     "16|السحاولة": "Sehaoula",
     "5|باتنة": "Batna",
     "5|القصبات": "Gosbat",
@@ -213,8 +215,8 @@ def _parse_communes_response(data: dict | list) -> list[str]:
             names.append(item)
         elif isinstance(item, dict):
             name = (
-                item.get("commune_name")
-                or item.get("nom")
+                item.get("nom")
+                or item.get("commune_name")
                 or item.get("name")
                 or item.get("commune")
                 or ""
