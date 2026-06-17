@@ -11,6 +11,7 @@ const state = {
   selectedOrderId: null,
   currentTab: 'overview',
   rangePreset: '7',
+  dateRange: { from: '', to: '' },
   loading: false,
   orderAlerts: {
     enabled: localStorage.getItem('confortdz_order_alerts') !== 'off',
@@ -84,23 +85,51 @@ function setRangeDays(days) {
   return { from, to: today };
 }
 
-function syncDatesFromPreset() {
-  if (state.rangePreset === 'custom') {
-    return getQueryDateRange();
-  }
-  if (state.rangePreset === 'today') return setRangeDays(0);
-  if (state.rangePreset === '30') return setRangeDays(30);
-  return setRangeDays(7);
-}
-
-function applyRangePreset(preset) {
+function setActiveDateRange(from, to, preset) {
+  state.dateRange = { from, to };
   state.rangePreset = preset;
-  const range = syncDatesFromPreset();
+  if ($('dateFrom')) $('dateFrom').value = from;
+  if ($('dateTo')) $('dateTo').value = to;
   document.querySelectorAll('.preset').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.range === preset);
   });
-  updateRangeUi(range);
-  return range;
+  updateRangeUi({ from, to });
+  return { from, to };
+}
+
+function applyRangePreset(preset) {
+  const today = formatAlgiersDate(new Date());
+  if (preset === 'today') {
+    return setActiveDateRange(today, today, 'today');
+  }
+  if (preset === '30') {
+    return setActiveDateRange(shiftIsoDate(today, -29), today, '30');
+  }
+  return setActiveDateRange(shiftIsoDate(today, -6), today, '7');
+}
+
+function getActiveDateRange() {
+  const from = ($('dateFrom')?.value || '').trim();
+  const to = ($('dateTo')?.value || '').trim();
+  if (from && to) {
+    if (state.dateRange.from !== from || state.dateRange.to !== to) {
+      state.dateRange = { from, to };
+      state.rangePreset = detectPresetFromDates(from, to);
+      document.querySelectorAll('.preset').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.range === state.rangePreset);
+      });
+    }
+    return { from, to };
+  }
+  if (state.dateRange.from && state.dateRange.to) {
+    return { ...state.dateRange };
+  }
+  return applyRangePreset(state.rangePreset || '7');
+}
+
+function metricsQueryString() {
+  const { from, to } = getActiveDateRange();
+  return `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
 }
 
 function getQueryDateRange() {
@@ -117,6 +146,11 @@ function detectPresetFromDates(from, to) {
   if (to === today && from === shiftIsoDate(today, -6)) return '7';
   if (to === today && from === shiftIsoDate(today, -29)) return '30';
   return 'custom';
+}
+
+function applyCustomDateRange(from, to) {
+  const preset = detectPresetFromDates(from, to);
+  return setActiveDateRange(from, to, preset);
 }
 
 function getSelectedRangeLabel(from, to) {
@@ -392,9 +426,20 @@ async function login(username, password) {
 }
 
 function queryRange() {
-  syncDatesFromPreset();
-  const { from, to } = getQueryDateRange();
-  return `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  return metricsQueryString();
+}
+
+async function refreshActiveTabData({ syncDhd = false } = {}) {
+  if (syncDhd) await runDhdSync();
+  if (state.currentTab === 'overview' || state.currentTab === 'products' || state.currentTab === 'accounting') {
+    await loadMetrics();
+  } else if (state.currentTab === 'orders') {
+    await loadOrders();
+  } else if (state.currentTab === 'deliveries') {
+    await loadDeliveries();
+  } else if (state.currentTab === 'costs') {
+    await loadProducts();
+  }
 }
 
 async function loadStatuses() {
@@ -405,8 +450,9 @@ async function loadStatuses() {
 }
 
 async function loadMetrics() {
-  const range = syncDatesFromPreset();
-  state.metrics = await api(`/api/admin/metrics?${queryRange()}`);
+  const range = getActiveDateRange();
+  const qs = metricsQueryString();
+  state.metrics = await api(`/api/admin/metrics?${qs}`);
   renderOverview(range);
   renderProductPerformance(range);
   renderAccounting();
@@ -419,9 +465,7 @@ async function loadProducts() {
 }
 
 async function loadOrders() {
-  syncDatesFromPreset();
-  const from = $('dateFrom').value;
-  const to = $('dateTo').value;
+  const { from, to } = getActiveDateRange();
   if (!from || !to) {
     showError('اختر تاريخ البداية والنهاية');
     return;
@@ -436,9 +480,7 @@ async function loadOrders() {
 }
 
 async function loadDeliveries() {
-  syncDatesFromPreset();
-  const from = $('dateFrom').value;
-  const to = $('dateTo').value;
+  const { from, to } = getActiveDateRange();
   if (!from || !to) {
     showError('اختر تاريخ البداية والنهاية');
     return;
@@ -454,8 +496,9 @@ function renderOverview(range) {
   const m = state.metrics;
   if (!m) return;
   const acc = m.accounting || {};
-  const from = range?.from || $('dateFrom')?.value;
-  const to = range?.to || $('dateTo')?.value;
+  const from = m.from || range?.from || state.dateRange.from;
+  const to = m.to || range?.to || state.dateRange.to;
+  const singleDay = m.single_day ?? (from && to && from === to);
 
   $('mDeliveredRevenue').textContent = money(acc.revenue_delivered || 0);
   $('mNetProfit').textContent = `صافي الربح ${money(acc.net_profit || 0)}`;
@@ -465,12 +508,16 @@ function renderOverview(range) {
 
   const rangeLabel = getSelectedRangeLabel(from, to);
   if ($('pageSubtitle')) {
-    const singleDay = from === to;
     $('pageSubtitle').textContent = singleDay
-      ? `اليوم (${from}) — طلبيات créées اليوم فقط`
+      ? `اليوم (${from}) — ${acc.orders_total || 0} طلبية créées اليوم`
       : rangeLabel
-        ? `الفترة: ${rangeLabel} — كل الطلبيات في هاد الفترة`
+        ? `الفترة: ${rangeLabel} — ${acc.orders_total || 0} طلبية`
         : 'اختر الفترة من فوق';
+  }
+  if ($('rangeDisplay')) {
+    $('rangeDisplay').textContent = singleDay
+      ? `تقرير اليوم: ${from} — ${acc.orders_total || 0} طلبية`
+      : `تقرير الفترة: ${rangeLabel} — ${acc.orders_total || 0} طلبية`;
   }
 
   const cards = [
@@ -720,10 +767,7 @@ function switchTab(tab) {
   if (tab === 'deliveries') {
     applyRangePreset('30');
   } else if (state.rangePreset !== 'custom') {
-    syncDatesFromPreset();
-    document.querySelectorAll('.preset').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.range === state.rangePreset);
-    });
+    applyRangePreset(state.rangePreset);
   }
   document.querySelectorAll('.tab').forEach((el) => {
     el.classList.toggle('active', el.dataset.tab === tab);
@@ -734,7 +778,7 @@ function switchTab(tab) {
   const panel = $(`tab-${tab}`);
   if (panel) panel.classList.remove('hidden');
   $('pageTitle').textContent = TAB_TITLES[tab] || 'Admin';
-  updateRangeUi(getQueryDateRange());
+  updateRangeUi(getActiveDateRange());
   refreshCurrentTab();
 }
 
@@ -865,20 +909,34 @@ $('applyFilters').addEventListener('click', refreshAll);
 ['dateFrom', 'dateTo'].forEach((id) => {
   const input = $(id);
   if (!input) return;
-  input.addEventListener('change', () => {
-    const { from, to } = getQueryDateRange();
-    state.rangePreset = detectPresetFromDates(from, to);
-    document.querySelectorAll('.preset').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.range === state.rangePreset);
-    });
-    updateRangeUi({ from, to });
-    refreshAll();
+  input.addEventListener('change', async () => {
+    const from = ($('dateFrom')?.value || '').trim();
+    const to = ($('dateTo')?.value || '').trim();
+    if (!from || !to) return;
+    applyCustomDateRange(from, to);
+    setLoading(true);
+    showError('');
+    try {
+      await refreshActiveTabData({ syncDhd: state.currentTab === 'orders' });
+    } catch (err) {
+      showError(err.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
   });
 });
 document.querySelectorAll('.preset').forEach((btn) => {
   btn.addEventListener('click', async () => {
     applyRangePreset(btn.dataset.range);
-    await refreshAll();
+    setLoading(true);
+    showError('');
+    try {
+      await refreshActiveTabData({ syncDhd: false });
+    } catch (err) {
+      showError(err.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
   });
 });
 $('reloadOrders').addEventListener('click', loadOrders);

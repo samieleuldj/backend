@@ -30,6 +30,10 @@ app = FastAPI(title="Confort DZ API")
 app.include_router(admin_router)
 
 ADMIN_DIR = Path(__file__).resolve().parent.parent / "admin"
+ADMIN_ASSET_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+}
 
 origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://confortdz.shop").split(",")
 
@@ -126,7 +130,7 @@ def admin_dashboard_js():
     js_path = ADMIN_DIR / "app.js"
     if not js_path.exists():
         raise HTTPException(status_code=404, detail="Admin assets not found")
-    return FileResponse(js_path, media_type="application/javascript")
+    return FileResponse(js_path, media_type="application/javascript", headers=ADMIN_ASSET_HEADERS)
 
 
 @app.get("/admin/styles.css")
@@ -134,7 +138,7 @@ def admin_dashboard_css():
     css_path = ADMIN_DIR / "styles.css"
     if not css_path.exists():
         raise HTTPException(status_code=404, detail="Admin assets not found")
-    return FileResponse(css_path, media_type="text/css")
+    return FileResponse(css_path, media_type="text/css", headers=ADMIN_ASSET_HEADERS)
 
 
 @app.get("/admin")
@@ -143,7 +147,7 @@ def admin_dashboard():
     index_path = ADMIN_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="Admin dashboard not found")
-    return FileResponse(index_path)
+    return FileResponse(index_path, headers=ADMIN_ASSET_HEADERS)
 
 
 @app.post("/api/analytics/event")
