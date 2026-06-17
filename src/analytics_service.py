@@ -4,7 +4,6 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import Request
-from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from . import models
