@@ -99,7 +99,7 @@ def read_root():
 
 @app.get("/api/health")
 def health_check():
-    webhook = get_webhook_url()
+    webhook = get_webhook_url("default")
     dhd_token = bool((os.getenv("DHD_API_TOKEN") or "").strip())
     admin_ready = bool(
         (os.getenv("ADMIN_USERNAME") or "").strip()

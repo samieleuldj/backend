@@ -12,8 +12,17 @@ logger = logging.getLogger(__name__)
 ALGIERS_TZ = timezone(timedelta(hours=1))
 
 
-def get_webhook_url() -> Optional[str]:
+def get_webhook_url(product_name: str = "") -> Optional[str]:
+    # Default webhook for Cellulite
     url = os.getenv("GOOGLE_SHEET_WEBHOOK_URL") or os.getenv("GOOGLE_SHEETS_WEBHOOK_URL")
+    
+    # New webhook for Mini Clima and Makeup Bag
+    new_products_webhook = "https://script.google.com/macros/s/AKfycbwSvzh7dt9QGEYVnyMBf7deyUWrbFvQj472a03OyxLbc4CmcnjSC5BjkZvBSQdRZ16Z4w/exec"
+    
+    name = str(product_name or "").lower()
+    if "مكيف" in name or "clima" in name or "حقيبة" in name or "مكياج" in name or "makeup" in name:
+        return new_products_webhook
+
     if not url or url.strip() in {"", "your_google_script_url_here"}:
         return None
     return url.strip()
@@ -89,7 +98,7 @@ def _post_google_script(url: str, payload: dict) -> httpx.Response:
 
 
 def send_order_to_google_sheets(order: dict) -> bool:
-    url = get_webhook_url()
+    url = get_webhook_url(order.get("product_name", ""))
     if not url:
         logger.warning(
             "SHEETS SKIP order=%s reason=GOOGLE_SHEET_WEBHOOK_URL missing",
