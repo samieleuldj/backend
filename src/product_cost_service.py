@@ -15,8 +15,12 @@ USD_TO_DZD_FROM_PURCHASE = round(CELLULITE_PURCHASE_DZD / CELLULITE_PURCHASE_USD
 MINI_CLIMA_PURCHASE_DZD = 1450.0
 MINI_CLIMA_SELL_DZD = 3900.0
 
+MAKEUP_BAG_PURCHASE_DZD = 2800.0
+MAKEUP_BAG_SELL_DZD = 5500.0
+
 DEFAULT_PRODUCTS = [
     {"product_id": "cellulite-device", "product_name": "جهاز إزالة السيلوليت والترهلات"},
+    {"product_id": "makeup-organizer-bag", "product_name": "حقيبة تنظيم المكياج الذكية مع مرآة LED"},
     {"product_id": "mini-clima-geant", "product_name": "Mini Clima Geant 3 في 1 — مكيف محمول"},
     {"product_id": "lumbar-belt", "product_name": "حزام دعم قطني للظهر"},
     {"product_id": "car-cushion", "product_name": "وسادة مقعد السيارة"},
@@ -25,6 +29,7 @@ DEFAULT_PRODUCTS = [
 
 LAUNCH_PURCHASE_COSTS = {
     "cellulite-device": CELLULITE_PURCHASE_DZD,
+    "makeup-organizer-bag": MAKEUP_BAG_PURCHASE_DZD,
     "mini-clima-geant": MINI_CLIMA_PURCHASE_DZD,
 }
 
