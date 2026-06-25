@@ -45,6 +45,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def disable_quic_advertisement(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Alt-Svc"] = "clear"
+    return response
+
 def get_db():
     db = database.SessionLocal()
     try:
