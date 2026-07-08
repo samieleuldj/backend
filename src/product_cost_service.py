@@ -19,6 +19,7 @@ MAKEUP_BAG_PURCHASE_DZD = 2800.0
 MAKEUP_BAG_SELL_DZD = 5500.0
 
 DEFAULT_PRODUCTS = [
+    {"product_id": "thermal-massage-brace", "product_name": "جهاز تدليك حراري واهتزاز 3 في 1"},
     {"product_id": "cellulite-device", "product_name": "جهاز إزالة السيلوليت والترهلات"},
     {"product_id": "makeup-organizer-bag", "product_name": "حقيبة تنظيم المكياج الذكية مع مرآة LED"},
     {"product_id": "mini-clima-geant", "product_name": "Mini Clima Geant 3 في 1 — مكيف محمول"},
