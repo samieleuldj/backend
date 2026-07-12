@@ -23,6 +23,8 @@ class AdSpendCreate(BaseModel):
     spend_date: date
     platform: str = Field(min_length=2, max_length=50)
     amount_dzd: float = Field(gt=0)
+    product_id: Optional[str] = None
+    product_name: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -30,6 +32,8 @@ class AdSpendEntry(BaseModel):
     id: int
     spend_date: date
     platform: str
+    product_id: Optional[str] = None
+    product_name: Optional[str] = None
     amount_dzd: float
     notes: Optional[str] = None
     source: Optional[str] = "manual"

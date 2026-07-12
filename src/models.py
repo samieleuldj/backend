@@ -60,6 +60,8 @@ class DailyAdSpend(Base):
     id = Column(Integer, primary_key=True, index=True)
     spend_date = Column(Date, index=True)
     platform = Column(String(50), index=True)
+    product_id = Column(String(120), nullable=True, index=True)
+    product_name = Column(String(255), nullable=True)
     amount_dzd = Column(Float, default=0)
     notes = Column(String(500), nullable=True)
     source = Column(String(20), default="manual", index=True)

@@ -120,6 +120,12 @@ def _accounting_summary(
     ad_spend_total = round(sum(float(row.amount_dzd or 0) for row in ad_rows), 2)
     net_profit = round(gross_profit - ad_spend_total, 2)
     roas = round(delivered_revenue / ad_spend_total, 2) if ad_spend_total else 0
+    units_delivered = order_stats["units_delivered"]
+    ad_cost_per_delivered = round(ad_spend_total / units_delivered, 2) if units_delivered else 0
+    product_cost_per_delivered = round(product_cost / units_delivered, 2) if units_delivered else 0
+    final_cost_per_delivered = round(product_cost_per_delivered + ad_cost_per_delivered, 2)
+    avg_sale_per_delivered = round(delivered_revenue / units_delivered, 2) if units_delivered else 0
+    net_profit_per_delivered = round(avg_sale_per_delivered - final_cost_per_delivered, 2) if units_delivered else 0
 
     return {
         **order_stats,
@@ -130,6 +136,11 @@ def _accounting_summary(
         "net_profit": net_profit,
         "roas": roas,
         "loss": round(abs(net_profit), 2) if net_profit < 0 else 0,
+        "ad_cost_per_delivered": ad_cost_per_delivered,
+        "product_cost_per_delivered": product_cost_per_delivered,
+        "final_cost_per_delivered": final_cost_per_delivered,
+        "avg_sale_per_delivered": avg_sale_per_delivered,
+        "net_profit_per_delivered": net_profit_per_delivered,
     }
 
 
@@ -137,7 +148,7 @@ def _build_product_performance(
     db: Session,
     orders: list[models.Order],
     events: list[models.AnalyticsEvent],
-    ad_spend_total: float,
+    ad_rows: list[models.DailyAdSpend],
 ) -> list[dict]:
     buckets: dict[str, dict] = {}
 
@@ -159,6 +170,7 @@ def _build_product_performance(
                 "revenue": 0.0,
                 "delivered_revenue": 0.0,
                 "product_cost": 0.0,
+                "unit_sale_price": 0.0,
             }
         return buckets[key]
 
@@ -185,6 +197,7 @@ def _build_product_performance(
                 "revenue": 0.0,
                 "delivered_revenue": 0.0,
                 "product_cost": 0.0,
+                "unit_sale_price": 0.0,
             },
         )
         bucket["product_views"] += 1
@@ -204,10 +217,22 @@ def _build_product_performance(
             bucket["units_delivered"] += qty
             bucket["delivered_revenue"] += _order_revenue(order)
             bucket["product_cost"] += order_product_cost(db, order)
+            if qty:
+                bucket["unit_sale_price"] = _order_revenue(order) / qty
         if is_cancelled(order.status):
             bucket["cancelled"] += 1
         if is_returned(order.status):
             bucket["returned"] += 1
+
+    ad_by_key: dict[str, float] = {}
+    unassigned_ad_spend = 0.0
+    for row in ad_rows:
+        amount = float(row.amount_dzd or 0)
+        key = (row.product_id or row.product_name or "").strip()
+        if key:
+            ad_by_key[key] = ad_by_key.get(key, 0.0) + amount
+        else:
+            unassigned_ad_spend += amount
 
     total_orders = sum(item["orders"] for item in buckets.values()) or 1
     rows = []
@@ -216,15 +241,29 @@ def _build_product_performance(
         orders_count = item["orders"]
         confirmed = item["confirmed"]
         delivered = item["delivered"]
+        units_delivered = item["units_delivered"]
         delivered_revenue = round(item["delivered_revenue"], 2)
         product_cost = round(item["product_cost"], 2)
         gross_profit = round(delivered_revenue - product_cost, 2)
-        ad_share = round(ad_spend_total * (orders_count / total_orders), 2)
+        assigned_ad = (
+            ad_by_key.get(item["product_id"], 0.0)
+            + ad_by_key.get(item["product_name"], 0.0)
+        )
+        unassigned_share = unassigned_ad_spend * (orders_count / total_orders)
+        ad_share = round(assigned_ad + unassigned_share, 2)
         net_profit = round(gross_profit - ad_share, 2)
         active_orders = max(orders_count - item["cancelled"], 0)
         conversion_rate = round((orders_count / views) * 100, 2) if views else 0
         confirmation_rate = round((confirmed / active_orders) * 100, 2) if active_orders else 0
         delivery_rate = round((delivered / confirmed) * 100, 2) if confirmed else 0
+        product_cost_per_delivered = round(product_cost / units_delivered, 2) if units_delivered else 0
+        ad_cost_per_delivered = round(ad_share / units_delivered, 2) if units_delivered else 0
+        final_cost_per_delivered = round(
+            product_cost_per_delivered + ad_cost_per_delivered,
+            2,
+        )
+        avg_sale_per_delivered = round(delivered_revenue / units_delivered, 2) if units_delivered else 0
+        net_profit_per_delivered = round(avg_sale_per_delivered - final_cost_per_delivered, 2) if units_delivered else 0
         rows.append(
             {
                 **item,
@@ -236,6 +275,11 @@ def _build_product_performance(
                 "net_profit": net_profit,
                 "profit": net_profit if net_profit >= 0 else 0,
                 "loss": round(abs(net_profit), 2) if net_profit < 0 else 0,
+                "product_cost_per_delivered": product_cost_per_delivered,
+                "ad_cost_per_delivered": ad_cost_per_delivered,
+                "final_cost_per_delivered": final_cost_per_delivered,
+                "avg_sale_per_delivered": avg_sale_per_delivered,
+                "net_profit_per_delivered": net_profit_per_delivered,
                 "conversion_rate": conversion_rate,
                 "confirmation_rate": confirmation_rate,
                 "delivery_rate": delivery_rate,
@@ -324,7 +368,7 @@ def enrich_metrics(
         db,
         orders,
         event_rows,
-        accounting["ad_spend_total"],
+        ad_rows,
     )
 
     metrics.update(
@@ -357,6 +401,8 @@ def enrich_metrics(
                     "id": row.id,
                     "spend_date": row.spend_date.isoformat(),
                     "platform": row.platform,
+                    "product_id": row.product_id,
+                    "product_name": row.product_name,
                     "amount_dzd": float(row.amount_dzd or 0),
                     "notes": row.notes,
                     "source": row.source or "manual",

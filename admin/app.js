@@ -24,7 +24,7 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
-const USD_TO_DZD = 141.18;
+const USD_TO_DZD = 250.50;
 
 function resolveAdSpendDzd() {
   const usd = Number($('adAmountUsd')?.value || 0);
@@ -34,6 +34,10 @@ function resolveAdSpendDzd() {
 }
 function money(v) { return `${Number(v || 0).toLocaleString('fr-DZ')} دج`; }
 function pct(v) { return `${Number(v || 0).toFixed(2)}%`; }
+function signedMoney(v) {
+  const n = Number(v || 0);
+  return `${n >= 0 ? '+' : ''}${money(n)}`;
+}
 function fmtDate(v) {
   if (!v) return '—';
   return new Date(v).toLocaleString('ar-DZ', { timeZone: 'Africa/Algiers' });
@@ -658,10 +662,13 @@ function renderProductPerformance(range) {
       <td>${money(p.delivered_revenue)}</td>
       <td>${money(p.product_cost)}</td>
       <td>${money(p.ad_spend)}</td>
+      <td>${money(p.ad_cost_per_delivered)}</td>
+      <td>${money(p.final_cost_per_delivered)}</td>
+      <td><strong class="${Number(p.net_profit_per_delivered || 0) >= 0 ? 'text-green' : 'text-red'}">${signedMoney(p.net_profit_per_delivered)}</strong></td>
       <td>${profitCell}</td>
       <td>${lossCell}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="10">لا توجد بيانات — اختر فترة فيها طلبيات</td></tr>';
+  }).join('') || '<tr><td colspan="13">لا توجد بيانات — اختر فترة فيها طلبيات</td></tr>';
 }
 
 function renderAccounting() {
@@ -675,6 +682,9 @@ function renderAccounting() {
     ['صرف إعلانات', money(acc.ad_spend_total)],
     ['ربح صافي', money(acc.net_profit)],
     ['خسارة', money(acc.loss || 0)],
+    ['إعلان/حبة مسلّمة', money(acc.ad_cost_per_delivered)],
+    ['كوست نهائي/حبة', money(acc.final_cost_per_delivered)],
+    ['صافي/حبة', signedMoney(acc.net_profit_per_delivered)],
     ['نسبة التأكيد', pct(acc.confirmation_rate)],
     ['نسبة التسليم', pct(acc.delivery_rate)],
     ['ROAS', acc.roas || 0],
@@ -684,15 +694,17 @@ function renderAccounting() {
     <tr>
       <td>${row.spend_date}</td>
       <td>${row.platform}</td>
+      <td>${row.product_name || row.product_id || 'كل المنتجات'}</td>
       <td>${money(row.amount_dzd)}</td>
       <td>${row.source || 'manual'}</td>
       <td>${row.notes || '—'}</td>
       <td>${row.source === 'auto' ? '—' : `<button type="button" class="btn btn-soft" data-delete-ad="${row.id}">Delete</button>`}</td>
     </tr>
-  `).join('') || '<tr><td colspan="6">No ad spend entries</td></tr>';
+  `).join('') || '<tr><td colspan="7">No ad spend entries</td></tr>';
 }
 
 function renderProductCosts() {
+  populateAdProductSelect();
   $('productCostsBody').innerHTML = state.products.map((p) => `
     <tr>
       <td><strong>${p.product_name}</strong><div class="muted small">${p.product_id}</div></td>
@@ -700,6 +712,15 @@ function renderProductCosts() {
       <td><button type="button" class="btn btn-primary" data-save-cost="${p.product_id}">Save</button></td>
     </tr>
   `).join('') || '<tr><td colspan="3">No products</td></tr>';
+}
+
+function populateAdProductSelect() {
+  const select = $('adProduct');
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = '<option value="">كل المنتجات / صرف عام</option>' +
+    state.products.map((p) => `<option value="${p.product_id}">${p.product_name}</option>`).join('');
+  select.value = current;
 }
 
 function renderOrders() {
@@ -1010,11 +1031,15 @@ $('adSpendForm').addEventListener('submit', async (e) => {
     setLoading(true);
     const usd = Number($('adAmountUsd')?.value || 0);
     const noteExtra = usd > 0 ? ` ($${usd})` : '';
+    const productId = $('adProduct')?.value || '';
+    const product = state.products.find((p) => p.product_id === productId);
     await api('/api/admin/ad-spend', {
       method: 'POST',
       body: JSON.stringify({
         spend_date: $('adDate').value,
         platform: $('adPlatform').value,
+        product_id: productId || null,
+        product_name: product?.product_name || null,
         amount_dzd: amountDzd,
         notes: (($('adNotes').value.trim() || '') + noteExtra).trim() || null,
       }),

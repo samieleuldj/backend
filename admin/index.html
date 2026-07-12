@@ -135,6 +135,9 @@
                   <th>إيراد مسلّم</th>
                   <th>تكلفة شراء</th>
                   <th>إعلانات</th>
+                  <th>إعلان/حبة</th>
+                  <th>كوست نهائي/حبة</th>
+                  <th>صافي/حبة</th>
                   <th>فائدة</th>
                   <th>خسارة</th>
                 </tr>
@@ -216,9 +219,14 @@
                   <option value="other">أخرى</option>
                 </select>
               </div>
+              <div class="full"><label>المنتج</label>
+                <select id="adProduct">
+                  <option value="">كل المنتجات / صرف عام</option>
+                </select>
+              </div>
               <div><label>المبلغ ($ USD)</label><input id="adAmountUsd" type="number" min="0" step="0.01" placeholder="50" /></div>
               <div><label>أو مباشرة (دج)</label><input id="adAmount" type="number" min="0" step="1" placeholder="7000" /></div>
-              <div class="full muted small">سعر الصرف: <span id="usdRateLabel">141.18</span> دج/$ — املأ USD أو DZD</div>
+              <div class="full muted small">سعر الصرف: <span id="usdRateLabel">250.50</span> دج/$ — املأ USD أو DZD</div>
               <div class="full"><label>ملاحظات</label><input id="adNotes" placeholder="حملة السيلوليت..." /></div>
               <div class="full"><button class="btn btn-primary" type="submit">حفظ الصرف</button></div>
             </form>
@@ -232,7 +240,7 @@
           <h3>سجل صرف الإعلانات</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Date</th><th>Platform</th><th>Amount</th><th>Source</th><th>Notes</th><th></th></tr></thead>
+              <thead><tr><th>Date</th><th>Platform</th><th>Product</th><th>Amount</th><th>Source</th><th>Notes</th><th></th></tr></thead>
               <tbody id="adSpendTableBody"></tbody>
             </table>
           </div>
@@ -270,6 +278,6 @@
 
   <div id="orderToastStack" class="order-toast-stack" aria-live="polite"></div>
 
-  <script src="/admin/app.js?v=19"></script>
+  <script src="/admin/app.js?v=20"></script>
 </body>
 </html>

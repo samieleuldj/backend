@@ -87,12 +87,15 @@ def ensure_schema_updates() -> None:
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         spend_date DATE NOT NULL,
                         platform VARCHAR(50) NOT NULL,
+                        product_id VARCHAR(120) NULL,
+                        product_name VARCHAR(255) NULL,
                         amount_dzd DOUBLE DEFAULT 0,
                         notes VARCHAR(500) NULL,
                         source VARCHAR(20) DEFAULT 'manual',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         INDEX idx_spend_date (spend_date),
                         INDEX idx_platform (platform),
+                        INDEX idx_product_id (product_id),
                         INDEX idx_source (source)
                     )
                     """
@@ -103,6 +106,16 @@ def ensure_schema_updates() -> None:
             "daily_ad_spend",
             "source",
             "ALTER TABLE daily_ad_spend ADD COLUMN source VARCHAR(20) DEFAULT 'manual'",
+        )
+        _add_column_if_missing(
+            "daily_ad_spend",
+            "product_id",
+            "ALTER TABLE daily_ad_spend ADD COLUMN product_id VARCHAR(120) NULL",
+        )
+        _add_column_if_missing(
+            "daily_ad_spend",
+            "product_name",
+            "ALTER TABLE daily_ad_spend ADD COLUMN product_name VARCHAR(255) NULL",
         )
 
     if "product_costs" not in tables:

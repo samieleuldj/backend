@@ -190,9 +190,22 @@ def create_ad_spend(
     db: Session = Depends(get_db),
     _: str = Depends(verify_admin_token),
 ):
+    product_id = (payload.product_id or "").strip() or None
+    product_name = (payload.product_name or "").strip() or None
+    if product_id and not product_name:
+        product = (
+            db.query(models.ProductCost)
+            .filter(models.ProductCost.product_id == product_id)
+            .first()
+        )
+        if product:
+            product_name = product.product_name
+
     row = models.DailyAdSpend(
         spend_date=payload.spend_date,
         platform=payload.platform.strip().lower(),
+        product_id=product_id,
+        product_name=product_name,
         amount_dzd=payload.amount_dzd,
         notes=(payload.notes or "")[:500] or None,
         source="manual",
