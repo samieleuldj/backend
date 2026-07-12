@@ -250,9 +250,10 @@ def map_dhd_status(raw: dict[str, Any]) -> str | None:
     if livred_at or global_status == "livre":
         return "تم التسليم"
 
-    if "livré" in status or "livre_non" in status:
+    if "livré" in status or "livre_non" in status or status == "livre":
         return "تم التسليم"
-    if "encaiss" in status and global_status == "livre":
+    # DHD: encaissé = COD collected → delivered for P&L
+    if "encaiss" in status:
         return "تم التسليم"
 
     if global_status == "retour" or return_id or return_asked_at or status.startswith("retour"):

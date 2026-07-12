@@ -53,10 +53,17 @@ def admin_login(payload: AdminLoginRequest):
 def admin_metrics(
     date_from: Optional[str] = Query(None, alias="from"),
     date_to: Optional[str] = Query(None, alias="to"),
+    sync: bool = Query(True, description="Sync DHD + Meta before computing metrics"),
     db: Session = Depends(get_db),
     _: str = Depends(verify_admin_token),
 ):
-    return get_metrics(db, date_from, date_to)
+    sync_info = None
+    if sync:
+        sync_info = run_auto_sync(db)
+    metrics = get_metrics(db, date_from, date_to)
+    if sync_info:
+        metrics["last_sync"] = sync_info
+    return metrics
 
 
 @router.get("/orders", response_model=list[AdminOrderSummary])

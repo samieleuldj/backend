@@ -15,6 +15,7 @@
         <div>
           <h1>Confort DZ</h1>
           <p class="muted">لوحة تحكم المتجر</p>
+          <p class="muted small">api.confortdz.shop/admin</p>
         </div>
       </div>
       <form id="loginForm">
@@ -196,37 +197,39 @@
       <section id="tab-accounting" class="tab-panel hidden">
         <div class="card table-actions">
           <div>
-            <h3>Auto Sync</h3>
-            <p class="muted small">Meta ad spend + DHD delivery status.</p>
+            <h3>مزامنة تلقائية</h3>
+            <p class="muted small" id="syncStatusNote">DHD (تسليم/تأكيد) + Meta (إعلانات) — تتحدث عند كل Refresh.</p>
           </div>
-          <button type="button" id="runSyncBtn" class="btn btn-dark">Sync now</button>
+          <button type="button" id="runSyncBtn" class="btn btn-dark">مزامنة الآن</button>
         </div>
         <div class="grid-2">
           <div class="card">
-            <h3>Manual Ad Spend</h3>
+            <h3>صرف الإعلانات (يدوي)</h3>
             <form id="adSpendForm" class="form-grid">
-              <div><label>Date</label><input id="adDate" type="date" required /></div>
-              <div><label>Platform</label>
+              <div><label>التاريخ</label><input id="adDate" type="date" required /></div>
+              <div><label>المنصة</label>
                 <select id="adPlatform" required>
-                  <option value="meta">Meta</option>
+                  <option value="meta">Meta (فيسبوك)</option>
                   <option value="tiktok">TikTok</option>
                   <option value="snap">Snapchat</option>
                   <option value="google">Google</option>
-                  <option value="other">Other</option>
+                  <option value="other">أخرى</option>
                 </select>
               </div>
-              <div><label>Amount (DZD)</label><input id="adAmount" type="number" min="1" step="1" required /></div>
-              <div class="full"><label>Notes</label><input id="adNotes" placeholder="Campaign..." /></div>
-              <div class="full"><button class="btn btn-primary" type="submit">Save</button></div>
+              <div><label>المبلغ ($ USD)</label><input id="adAmountUsd" type="number" min="0" step="0.01" placeholder="50" /></div>
+              <div><label>أو مباشرة (دج)</label><input id="adAmount" type="number" min="0" step="1" placeholder="7000" /></div>
+              <div class="full muted small">سعر الصرف: <span id="usdRateLabel">141.18</span> دج/$ — املأ USD أو DZD</div>
+              <div class="full"><label>ملاحظات</label><input id="adNotes" placeholder="حملة السيلوليت..." /></div>
+              <div class="full"><button class="btn btn-primary" type="submit">حفظ الصرف</button></div>
             </form>
           </div>
           <div class="card">
-            <h3>Accounting Summary</h3>
+            <h3>ملخص الحسابات</h3>
             <div id="accountingSummary" class="summary-list"></div>
           </div>
         </div>
         <div class="card">
-          <h3>Ad Spend Entries</h3>
+          <h3>سجل صرف الإعلانات</h3>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Date</th><th>Platform</th><th>Amount</th><th>Source</th><th>Notes</th><th></th></tr></thead>
@@ -267,6 +270,6 @@
 
   <div id="orderToastStack" class="order-toast-stack" aria-live="polite"></div>
 
-  <script src="/admin/app.js?v=17"></script>
+  <script src="/admin/app.js?v=19"></script>
 </body>
 </html>

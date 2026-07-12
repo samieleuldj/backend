@@ -24,6 +24,14 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+const USD_TO_DZD = 141.18;
+
+function resolveAdSpendDzd() {
+  const usd = Number($('adAmountUsd')?.value || 0);
+  const dzd = Number($('adAmount')?.value || 0);
+  if (usd > 0) return Math.round(usd * USD_TO_DZD);
+  return dzd;
+}
 function money(v) { return `${Number(v || 0).toLocaleString('fr-DZ')} دج`; }
 function pct(v) { return `${Number(v || 0).toFixed(2)}%`; }
 function fmtDate(v) {
@@ -198,17 +206,35 @@ function updateRangeUi(range) {
   }
 }
 
+function formatApiError(body, status) {
+  const detail = body?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail) && detail.length) {
+    return detail.map((item) => item.msg || item.message || String(item)).join(' — ');
+  }
+  if (status === 401) return 'اسم المستخدم أو كلمة المرور غير صحيحة';
+  return `Request failed (${status})`;
+}
+
 async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
-  const res = await fetch(`${API}${path}`, { ...options, headers });
+  let res;
+  try {
+    res = await fetch(`${API}${path}`, { ...options, headers });
+  } catch (err) {
+    throw new Error(
+      'تعذر الاتصال بالسيرفر. افتح الرابط https://api.confortdz.shop/admin من WiFi أو متصفح آخر، ثم أعد المحاولة.'
+    );
+  }
   if (res.status === 401) {
-    logout();
-    throw new Error('Unauthorized');
+    if (path !== '/api/admin/login') logout();
+    const body = await res.json().catch(() => ({}));
+    throw new Error(formatApiError(body, res.status));
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || `Request failed (${res.status})`);
+    throw new Error(formatApiError(body, res.status));
   }
   return res.json();
 }
@@ -521,23 +547,21 @@ function renderOverview(range) {
   }
 
   const cards = [
-    ['Total Orders', acc.orders_total || 0],
-    ['Confirmation Rate', pct(acc.confirmation_rate)],
-    ['Delivery Rate', pct(acc.delivery_rate)],
-    ['Conversion Rate', pct(m.conversion_rate)],
-    ['Checkout CVR', pct(m.checkout_cvr)],
-    ['Unique Visitors', m.unique_visitors || 0],
-    ['Page Views', m.page_views || 0],
-    ['Product Views', m.product_views || 0],
-    ['Pending', acc.orders_pending || 0],
-    ['Confirmed+', acc.orders_confirmed || 0],
-    ['Shipped', acc.orders_shipped || 0],
-    ['Delivered', acc.orders_delivered || 0],
-    ['Cancelled', acc.orders_cancelled || 0],
-    ['AOV', money(m.avg_order_value)],
-    ['Gross Profit', money(acc.gross_profit || 0)],
-    ['Ad Spend', money(acc.ad_spend_total || 0)],
-    ['Net Profit', money(acc.net_profit || 0)],
+    ['إجمالي الطلبيات', acc.orders_total || 0],
+    ['نسبة التأكيد', pct(acc.confirmation_rate)],
+    ['نسبة التسليم', pct(acc.delivery_rate)],
+    ['في الانتظار', acc.orders_pending || 0],
+    ['مؤكد+', acc.orders_confirmed || 0],
+    ['تم الشحن', acc.orders_shipped || 0],
+    ['تم التسليم', acc.orders_delivered || 0],
+    ['ملغي', acc.orders_cancelled || 0],
+    ['إيراد مسلّم', money(acc.revenue_delivered || 0)],
+    ['تكلفة المنتج', money(acc.product_cost || 0)],
+    ['ربح إجمالي', money(acc.gross_profit || 0)],
+    ['صرف إعلانات', money(acc.ad_spend_total || 0)],
+    ['ربح صافي', money(acc.net_profit || 0)],
+    ['خسارة', money(acc.loss || 0)],
+    ['ROAS', acc.roas || 0],
   ];
 
   $('metricsGrid').innerHTML = cards.map(([label, value]) => `
@@ -571,10 +595,25 @@ function renderOverview(range) {
       <td>${money(row.revenue_delivered)}</td>
       <td>${money(row.ad_spend)}</td>
       <td>${money(row.product_cost)}</td>
-      <td><strong>${money(row.net_profit)}</strong></td>
+      <td><strong class="${Number(row.net_profit) >= 0 ? 'text-green' : 'text-red'}">${money(row.net_profit)}</strong></td>
       <td>${money(row.loss || 0)}</td>
     </tr>
-  `).join('') || '<tr><td colspan="7">No P&amp;L data</td></tr>';
+  `).join('') || '<tr><td colspan="7">لا توجد بيانات — أضف صرف إعلانات واختر فترة فيها طلبيات</td></tr>';
+
+  renderSyncNote(m.last_sync);
+}
+
+function renderSyncNote(lastSync) {
+  const el = $('syncStatusNote');
+  if (!el || !lastSync) return;
+  const dhd = lastSync.dhd || {};
+  const meta = lastSync.meta || {};
+  const parts = [];
+  if (dhd.ok) parts.push(`DHD: ${dhd.updated || 0} محدّث / ${dhd.checked || 0} مفحوص`);
+  else if (dhd.reason === 'dhd_not_configured') parts.push('DHD: غير مربوط (DHD_API_TOKEN)');
+  if (meta.ok) parts.push(`Meta: ${meta.synced || 0} يوم`);
+  else if (meta.reason === 'meta_not_configured') parts.push('Meta: يدوي (أضف الصرف في Comptabilité)');
+  el.textContent = parts.join(' · ') || el.textContent;
 }
 
 function renderProductPerformance(range) {
@@ -629,15 +668,15 @@ function renderAccounting() {
   const m = state.metrics;
   const acc = m?.accounting || {};
   $('accountingSummary').innerHTML = [
-    ['Delivered revenue', money(acc.revenue_delivered)],
-    ['Confirmed revenue', money(acc.revenue_confirmed)],
-    ['Product cost', money(acc.product_cost)],
-    ['Gross profit', money(acc.gross_profit)],
-    ['Ad spend', money(acc.ad_spend_total)],
-    ['Net profit', money(acc.net_profit)],
-    ['Loss', money(acc.loss || 0)],
-    ['Confirmation rate', pct(acc.confirmation_rate)],
-    ['Delivery rate', pct(acc.delivery_rate)],
+    ['إيراد مسلّم', money(acc.revenue_delivered)],
+    ['إيراد مؤكد', money(acc.revenue_confirmed)],
+    ['تكلفة المنتج', money(acc.product_cost)],
+    ['ربح إجمالي', money(acc.gross_profit)],
+    ['صرف إعلانات', money(acc.ad_spend_total)],
+    ['ربح صافي', money(acc.net_profit)],
+    ['خسارة', money(acc.loss || 0)],
+    ['نسبة التأكيد', pct(acc.confirmation_rate)],
+    ['نسبة التسليم', pct(acc.delivery_rate)],
     ['ROAS', acc.roas || 0],
   ].map(([k, v]) => `<div class="summary-row"><span>${k}</span><strong>${v}</strong></div>`).join('');
 
@@ -962,18 +1001,26 @@ $('saveStatusBtn').addEventListener('click', async () => {
 
 $('adSpendForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const amountDzd = resolveAdSpendDzd();
+  if (!amountDzd || amountDzd <= 0) {
+    showError('أدخل مبلغ الإعلانات ($ أو دج)');
+    return;
+  }
   try {
     setLoading(true);
+    const usd = Number($('adAmountUsd')?.value || 0);
+    const noteExtra = usd > 0 ? ` ($${usd})` : '';
     await api('/api/admin/ad-spend', {
       method: 'POST',
       body: JSON.stringify({
         spend_date: $('adDate').value,
         platform: $('adPlatform').value,
-        amount_dzd: Number($('adAmount').value),
-        notes: $('adNotes').value.trim() || null,
+        amount_dzd: amountDzd,
+        notes: (($('adNotes').value.trim() || '') + noteExtra).trim() || null,
       }),
     });
     $('adAmount').value = '';
+    if ($('adAmountUsd')) $('adAmountUsd').value = '';
     $('adNotes').value = '';
     await loadMetrics();
   } catch (err) {

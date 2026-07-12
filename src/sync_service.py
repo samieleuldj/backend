@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -81,12 +81,10 @@ def sync_dhd_order_statuses(db: Session, limit: int = 500) -> dict:
     if not token:
         return {"ok": False, "reason": "dhd_not_configured", "updated": 0}
 
+    cutoff = datetime.now(timezone.utc) - timedelta(days=120)
     orders = (
         db.query(models.Order)
-        .filter(
-            models.Order.tracking_number.isnot(None),
-            models.Order.tracking_number != "",
-        )
+        .filter(models.Order.created_at >= cutoff)
         .order_by(models.Order.updated_at.desc())
         .limit(limit)
         .all()
@@ -98,7 +96,7 @@ def sync_dhd_order_statuses(db: Session, limit: int = 500) -> dict:
     sheet_updates: list[tuple[str, str, str]] = []
 
     try:
-        dhd_rows = fetch_dhd_orders(max_pages=10, per_page=100)
+        dhd_rows = fetch_dhd_orders(max_pages=20, per_page=100)
     except Exception as exc:
         logger.warning("DHD bulk fetch failed: %s", exc)
         dhd_rows = []
