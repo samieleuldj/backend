@@ -1,5 +1,5 @@
 const API = window.location.origin;
-const TOKEN_KEY = 'confortdz_admin_token';
+const TOKEN_KEY = 'veloradz_admin_token';
 
 const state = {
   token: localStorage.getItem(TOKEN_KEY) || '',
@@ -14,8 +14,8 @@ const state = {
   dateRange: { from: '', to: '' },
   loading: false,
   orderAlerts: {
-    enabled: localStorage.getItem('confortdz_order_alerts') !== 'off',
-    lastOrderDbId: Number(localStorage.getItem('confortdz_last_order_id') || 0),
+    enabled: localStorage.getItem('veloradz_order_alerts') !== 'off',
+    lastOrderDbId: Number(localStorage.getItem('veloradz_last_order_id') || 0),
     initialized: false,
     pollTimer: null,
     audioReady: false,
@@ -228,7 +228,7 @@ async function api(path, options = {}) {
     res = await fetch(`${API}${path}`, { ...options, headers });
   } catch (err) {
     throw new Error(
-      'تعذر الاتصال بالسيرفر. افتح الرابط https://api.confortdz.shop/admin من WiFi أو متصفح آخر، ثم أعد المحاولة.'
+      'تعذر الاتصال بالسيرفر. افتح الرابط https://api.veloradz.shop/admin من WiFi أو متصفح آخر، ثم أعد المحاولة.'
     );
   }
   if (res.status === 401) {
@@ -358,7 +358,7 @@ function notifyNewOrder(order) {
 
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
-      new Notification('طلبية جديدة — Confort DZ', {
+      new Notification('طلبية جديدة — Velora DZ', {
         body: `${order.customer_name} — ${money(order.total_price)}`,
         tag: `order-${order.order_id}`,
       });
@@ -391,13 +391,13 @@ async function pollLatestOrder() {
     if (!state.orderAlerts.initialized) {
       state.orderAlerts.initialized = true;
       state.orderAlerts.lastOrderDbId = order.id;
-      localStorage.setItem('confortdz_last_order_id', String(order.id));
+      localStorage.setItem('veloradz_last_order_id', String(order.id));
       return;
     }
 
     if (order.id > state.orderAlerts.lastOrderDbId) {
       state.orderAlerts.lastOrderDbId = order.id;
-      localStorage.setItem('confortdz_last_order_id', String(order.id));
+      localStorage.setItem('veloradz_last_order_id', String(order.id));
       notifyNewOrder(order);
       if (state.currentTab === 'orders') await loadOrders();
       if (state.metrics) await loadMetrics();
@@ -430,7 +430,7 @@ function stopOrderAlertPolling() {
 
 function toggleOrderAlerts() {
   state.orderAlerts.enabled = !state.orderAlerts.enabled;
-  localStorage.setItem('confortdz_order_alerts', state.orderAlerts.enabled ? 'on' : 'off');
+  localStorage.setItem('veloradz_order_alerts', state.orderAlerts.enabled ? 'on' : 'off');
   if (state.orderAlerts.enabled) {
     unlockOrderAudio();
     requestOrderNotifications();

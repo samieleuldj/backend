@@ -1,4 +1,4 @@
--- Confort DZ — Admin dashboard migration (MySQL 5.7 / MariaDB compatible)
+-- Velora DZ — Admin dashboard migration (MySQL 5.7 / MariaDB compatible)
 -- Run once in EasyPanel → Database → SQL
 
 CREATE TABLE IF NOT EXISTS analytics_events (

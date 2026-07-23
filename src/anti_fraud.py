@@ -61,7 +61,7 @@ def validate_order_security(
     if not is_mobile_user_agent(user_agent) and not whitelisted:
         raise HTTPException(
             status_code=403,
-            detail="الطلب متاح من الهاتف فقط. افتح confortdz.shop من هاتفك للطلب.",
+            detail="الطلب متاح من الهاتف فقط. افتح veloradz.shop من هاتفك للطلب.",
         )
 
     if delivery_type not in {"home", "office"}:
