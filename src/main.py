@@ -18,6 +18,7 @@ from .dhd import create_dhd_parcel
 from .migrations import ensure_schema_updates
 from .phone_utils import normalize_algerian_phone
 from .product_cost_service import ensure_default_products
+from .storefront_prices import get_product_price, get_storefront_prices
 from .sync_service import run_auto_sync, sync_order_from_sheet, sync_orders_bulk_from_sheet
 
 logging.basicConfig(level=logging.INFO)
@@ -102,6 +103,11 @@ def log_startup_config():
 @app.get("/")
 def read_root():
     return {"status": "online", "message": "Velora DZ API is running"}
+
+
+@app.get("/api/storefront/prices")
+def storefront_prices():
+    return get_storefront_prices()
 
 
 @app.get("/api/health")
@@ -285,16 +291,21 @@ def create_order(
         delivery_type=delivery_type,
     )
 
+    product_id = (order.product_id or "").strip()
+    live_price = get_product_price(product_id) if product_id else None
+    unit_price = float(live_price["price"]) if live_price and "price" in live_price else float(order.unit_price)
+
+    notes = (order.notes or "").strip() or None
+
+    product_subtotal = unit_price * order.quantity
+    shipping_cost = max(0.0, order.total_price - (order.unit_price * order.quantity))
+    total_price = product_subtotal + shipping_cost
+
     risk_score = 0
     if len(set(clean_phone)) <= 3:
         risk_score += 50
     if len(customer_name) < 5:
         risk_score += 20
-
-    notes = (order.notes or "").strip() or None
-
-    product_subtotal = order.unit_price * order.quantity
-    shipping_cost = max(0.0, order.total_price - product_subtotal)
 
     db_order = models.Order(
         order_id=order.order_id,
@@ -306,9 +317,9 @@ def create_order(
         product_id=(order.product_id or "")[:120] or None,
         product_name=order.product_name,
         quantity=order.quantity,
-        unit_price=order.unit_price,
+        unit_price=unit_price,
         shipping_cost=shipping_cost if shipping_cost > 0 else None,
-        total_price=order.total_price,
+        total_price=total_price,
         notes=notes,
         risk_score=risk_score,
         utm_source=(order.utm_source or "")[:120] or None,
@@ -331,10 +342,10 @@ def create_order(
         "commune": db_order.commune,
         "product_name": db_order.product_name,
         "quantity": db_order.quantity,
-        "unit_price": order.unit_price,
+        "unit_price": unit_price,
         "product_price": product_subtotal,
         "shipping_cost": shipping_cost,
-        "total_price": db_order.total_price,
+        "total_price": total_price,
         "delivery_type": db_order.delivery_type,
         "notes": notes or "",
     }
