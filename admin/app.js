@@ -228,7 +228,7 @@ async function api(path, options = {}) {
     res = await fetch(`${API}${path}`, { ...options, headers });
   } catch (err) {
     throw new Error(
-      'تعذر الاتصال بالسيرفر. افتح الرابط https://api.veloradz.shop/admin من WiFi أو متصفح آخر، ثم أعد المحاولة.'
+      'تعذر الاتصال بالسيرفر. افتح الرابط https://api.confortdz.shop/admin من WiFi أو متصفح آخر، ثم أعد المحاولة.'
     );
   }
   if (res.status === 401) {
@@ -479,10 +479,11 @@ async function loadStatuses() {
   $('modalStatus').innerHTML = state.statuses.map((s) => `<option value="${s}">${s}</option>`).join('');
 }
 
-async function loadMetrics() {
+async function loadMetrics(withSync = false) {
   const range = getActiveDateRange();
   const qs = metricsQueryString();
-  state.metrics = await api(`/api/admin/metrics?${qs}`);
+  const syncQs = withSync ? '&sync=true' : '&sync=false';
+  state.metrics = await api(`/api/admin/metrics?${qs}${syncQs}`);
   renderOverview(range);
   renderProductPerformance(range);
   renderAccounting();
@@ -871,7 +872,7 @@ async function refreshAll() {
   showError('');
   try {
     await runDhdSync();
-    await loadMetrics();
+    await loadMetrics(false);
     if (state.currentTab === 'orders') await loadOrders();
     if (state.currentTab === 'deliveries') await loadDeliveries();
     if (state.currentTab === 'costs') await loadProducts();

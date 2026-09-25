@@ -53,7 +53,7 @@ def admin_login(payload: AdminLoginRequest):
 def admin_metrics(
     date_from: Optional[str] = Query(None, alias="from"),
     date_to: Optional[str] = Query(None, alias="to"),
-    sync: bool = Query(True, description="Sync DHD + Meta before computing metrics"),
+    sync: bool = Query(False, description="Sync DHD + Meta before computing metrics"),
     db: Session = Depends(get_db),
     _: str = Depends(verify_admin_token),
 ):

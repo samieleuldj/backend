@@ -5,10 +5,10 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from . import models
-from .dhd import fetch_dhd_orders, find_dhd_order, map_dhd_status
+from .dhd import fetch_dhd_orders, map_dhd_status
 from .google_sheets import push_order_status_to_sheet
 from .meta_ads_service import sync_meta_ad_spend
-from .order_status import canonical_status, is_cancelled, is_delivered, is_returned
+from .order_status import canonical_status, is_cancelled
 
 logger = logging.getLogger(__name__)
 
@@ -120,11 +120,7 @@ def sync_dhd_order_statuses(db: Session, limit: int = 500) -> dict:
 
         checked += 1
         try:
-            raw = (
-                dhd_by_tracking.get(tracking)
-                or dhd_by_reference.get(reference)
-                or find_dhd_order(tracking=tracking, reference=reference)
-            )
+            raw = dhd_by_tracking.get(tracking) or dhd_by_reference.get(reference)
             if not raw:
                 errors.append(f"{order.order_id}: not found in DHD")
                 continue
@@ -160,15 +156,6 @@ def sync_dhd_order_statuses(db: Session, limit: int = 500) -> dict:
 
     for order_id, status, tracking in sheet_updates:
         push_order_status_to_sheet(order_id, status, tracking)
-
-    # Keep Google Sheet in sync for every delivered order already in DB.
-    for order in orders:
-        if is_delivered(order.status):
-            push_order_status_to_sheet(
-                order.order_id,
-                canonical_status(order.status),
-                order.tracking_number,
-            )
 
     return {
         "ok": True,
