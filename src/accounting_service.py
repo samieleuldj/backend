@@ -149,6 +149,7 @@ def _build_product_performance(
     orders: list[models.Order],
     events: list[models.AnalyticsEvent],
     ad_rows: list[models.DailyAdSpend],
+    product_view_counts: Optional[dict[str, int]] = None,
 ) -> list[dict]:
     buckets: dict[str, dict] = {}
 
@@ -174,17 +175,24 @@ def _build_product_performance(
             }
         return buckets[key]
 
-    for event in events:
-        if event.event_type != "product_view":
-            continue
-        key = (event.product_id or event.product_name or "").strip()
+    view_counts = product_view_counts or {}
+    if not view_counts:
+        for event in events:
+            if event.event_type != "product_view":
+                continue
+            key = (event.product_id or event.product_name or "").strip()
+            if not key:
+                continue
+            view_counts[key] = view_counts.get(key, 0) + 1
+
+    for key, views in view_counts.items():
         if not key:
             continue
         bucket = buckets.setdefault(
             key,
             {
-                "product_id": event.product_id or "",
-                "product_name": event.product_name or key,
+                "product_id": key if "-" in key else "",
+                "product_name": key,
                 "product_views": 0,
                 "orders": 0,
                 "units_ordered": 0,
@@ -200,7 +208,7 @@ def _build_product_performance(
                 "unit_sale_price": 0.0,
             },
         )
-        bucket["product_views"] += 1
+        bucket["product_views"] += views
 
     for order in orders:
         bucket = get_bucket(order)
@@ -300,6 +308,7 @@ def enrich_metrics(
     orders_for_status: Optional[list[models.Order]] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    product_view_counts: Optional[dict[str, int]] = None,
 ) -> dict:
     from_date = date_from or metrics.get("from") or _algiers_day(start)
     to_date = date_to or metrics.get("to") or _algiers_day(end)
@@ -369,6 +378,7 @@ def enrich_metrics(
         orders,
         event_rows,
         ad_rows,
+        product_view_counts=product_view_counts,
     )
 
     metrics.update(

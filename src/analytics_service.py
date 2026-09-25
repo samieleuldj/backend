@@ -4,6 +4,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import models
@@ -139,19 +140,66 @@ def valid_event_filter():
     return models.AnalyticsEvent.is_valid.is_(True)
 
 
-def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -> dict:
-    start, end = default_date_range(date_from, date_to)
-    display_from, display_to = _display_date_range(date_from, date_to, start, end)
+def _event_count(db: Session, start: datetime, end: datetime, event_type: Optional[str] = None) -> int:
+    query = db.query(func.count(models.AnalyticsEvent.id)).filter(
+        models.AnalyticsEvent.created_at >= start,
+        models.AnalyticsEvent.created_at <= end,
+        valid_event_filter(),
+    )
+    if event_type:
+        query = query.filter(models.AnalyticsEvent.event_type == event_type)
+    return int(query.scalar() or 0)
 
-    events = (
-        db.query(models.AnalyticsEvent)
+
+def _unique_visitors(db: Session, start: datetime, end: datetime) -> int:
+    return int(
+        db.query(func.count(func.distinct(models.AnalyticsEvent.session_id)))
         .filter(
             models.AnalyticsEvent.created_at >= start,
             models.AnalyticsEvent.created_at <= end,
             valid_event_filter(),
+            models.AnalyticsEvent.session_id.isnot(None),
+            models.AnalyticsEvent.session_id != "",
         )
+        .scalar()
+        or 0
+    )
+
+
+def _product_view_counts(db: Session, start: datetime, end: datetime) -> dict[str, int]:
+    rows = (
+        db.query(
+            models.AnalyticsEvent.product_id,
+            models.AnalyticsEvent.product_name,
+            func.count(models.AnalyticsEvent.id),
+        )
+        .filter(
+            models.AnalyticsEvent.created_at >= start,
+            models.AnalyticsEvent.created_at <= end,
+            valid_event_filter(),
+            models.AnalyticsEvent.event_type == "product_view",
+        )
+        .group_by(models.AnalyticsEvent.product_id, models.AnalyticsEvent.product_name)
         .all()
     )
+    counts: dict[str, int] = {}
+    for product_id, product_name, total in rows:
+        if product_id:
+            counts[str(product_id)] = counts.get(str(product_id), 0) + int(total or 0)
+        if product_name:
+            counts[str(product_name)] = counts.get(str(product_name), 0) + int(total or 0)
+    return counts
+
+
+def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -> dict:
+    start, end = default_date_range(date_from, date_to)
+    display_from, display_to = _display_date_range(date_from, date_to, start, end)
+
+    page_views = _event_count(db, start, end, "page_view")
+    product_views = _event_count(db, start, end, "product_view")
+    checkout_starts = _event_count(db, start, end, "checkout_start")
+    unique_visitors = _unique_visitors(db, start, end)
+    product_view_counts = _product_view_counts(db, start, end)
 
     orders = (
         db.query(models.Order)
@@ -163,32 +211,17 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         .all()
     )
 
-    page_views = sum(1 for event in events if event.event_type == "page_view")
-    product_views = sum(1 for event in events if event.event_type == "product_view")
-    checkout_starts = sum(1 for event in events if event.event_type == "checkout_start")
-    unique_visitors = len({event.session_id for event in events if event.session_id})
-
     order_count = len(orders)
     revenue = round(sum(order.total_price for order in orders), 2)
     avg_order_value = round(revenue / order_count, 2) if order_count else 0
     conversion_rate = round((order_count / unique_visitors) * 100, 2) if unique_visitors else 0
 
     daily_map: dict[str, dict] = {}
-    for event in events:
-        day = _algiers_day(event.created_at)
-        bucket = daily_map.setdefault(
-            day,
-            {"date": day, "visitors": set(), "page_views": 0, "orders": 0, "revenue": 0},
-        )
-        bucket["page_views"] += 1 if event.event_type == "page_view" else 0
-        if event.session_id:
-            bucket["visitors"].add(event.session_id)
-
     for order in orders:
         day = _algiers_day(order.created_at)
         bucket = daily_map.setdefault(
             day,
-            {"date": day, "visitors": set(), "page_views": 0, "orders": 0, "revenue": 0},
+            {"date": day, "visitors": 0, "page_views": 0, "orders": 0, "revenue": 0},
         )
         bucket["orders"] += 1
         bucket["revenue"] += order.total_price
@@ -199,7 +232,7 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         daily.append(
             {
                 "date": day,
-                "visitors": len(bucket["visitors"]),
+                "visitors": bucket["visitors"],
                 "page_views": bucket["page_views"],
                 "orders": bucket["orders"],
                 "revenue": round(bucket["revenue"], 2),
@@ -209,14 +242,10 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
     product_clicks: dict[str, int] = {}
     product_views_by_id: dict[str, int] = {}
     product_views_by_name: dict[str, int] = {}
-    for event in events:
-        if event.event_type != "product_view":
-            continue
-        if event.product_id:
-            product_views_by_id[event.product_id] = product_views_by_id.get(event.product_id, 0) + 1
-        if event.product_name:
-            product_clicks[event.product_name] = product_clicks.get(event.product_name, 0) + 1
-            product_views_by_name[event.product_name] = product_views_by_name.get(event.product_name, 0) + 1
+    for key, total in product_view_counts.items():
+        product_clicks[key] = total
+        product_views_by_id[key] = total
+        product_views_by_name[key] = total
 
     by_product: dict[str, dict] = {}
     for order in orders:
@@ -295,7 +324,8 @@ def get_metrics(db: Session, date_from: Optional[str], date_to: Optional[str]) -
         start,
         end,
         orders,
-        events,
+        events=[],
+        product_view_counts=product_view_counts,
         date_from=display_from,
         date_to=display_to,
     )

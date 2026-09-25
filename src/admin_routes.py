@@ -277,11 +277,12 @@ def admin_run_sync(
 def admin_deliveries(
     date_from: Optional[str] = Query(None, alias="from"),
     date_to: Optional[str] = Query(None, alias="to"),
+    sync: bool = Query(False, description="Sync DHD statuses before listing deliveries"),
     db: Session = Depends(get_db),
     _: str = Depends(verify_admin_token),
 ):
-    """Sync DHD then return all delivered orders for the period."""
-    sync_result = sync_dhd_order_statuses(db, limit=500)
+    """Return delivered orders for the period; optional DHD sync."""
+    sync_result = sync_dhd_order_statuses(db, limit=500) if sync else {"skipped": True}
     start, end = default_date_range(date_from, date_to)
 
     query = (

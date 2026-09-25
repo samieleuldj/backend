@@ -1,5 +1,6 @@
 const API = window.location.origin;
 const TOKEN_KEY = 'veloradz_admin_token';
+const API_TIMEOUT_MS = 25000;
 
 const state = {
   token: localStorage.getItem(TOKEN_KEY) || '',
@@ -223,13 +224,23 @@ function formatApiError(body, status) {
 async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  const timeoutMs = options.timeoutMs ?? API_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   let res;
   try {
-    res = await fetch(`${API}${path}`, { ...options, headers });
+    res = await fetch(`${API}${path}`, { ...options, headers, signal: controller.signal });
   } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error(
+        `انتهت مهلة الطلب (${Math.round(timeoutMs / 1000)}ث). جرّب "7 أيام" بدل "اليوم"، أو اضغط Sync now لاحقاً.`
+      );
+    }
     throw new Error(
       'تعذر الاتصال بالسيرفر. افتح الرابط https://api.confortdz.shop/admin من WiFi أو متصفح آخر، ثم أعد المحاولة.'
     );
+  } finally {
+    window.clearTimeout(timer);
   }
   if (res.status === 401) {
     if (path !== '/api/admin/login') logout();
@@ -244,6 +255,7 @@ async function api(path, options = {}) {
 }
 
 function showLogin() {
+  setLoading(false);
   $('loginView').classList.remove('hidden');
   $('appView').classList.add('hidden');
 }
@@ -462,11 +474,11 @@ function queryRange() {
 async function refreshActiveTabData({ syncDhd = false } = {}) {
   if (syncDhd) await runDhdSync();
   if (state.currentTab === 'overview' || state.currentTab === 'products' || state.currentTab === 'accounting') {
-    await loadMetrics();
+    await loadMetrics(false);
   } else if (state.currentTab === 'orders') {
     await loadOrders();
   } else if (state.currentTab === 'deliveries') {
-    await loadDeliveries();
+    await loadDeliveries(false);
   } else if (state.currentTab === 'costs') {
     await loadProducts();
   }
@@ -510,14 +522,14 @@ async function loadOrders() {
   updateRangeUi();
 }
 
-async function loadDeliveries() {
+async function loadDeliveries(withSync = false) {
   const { from, to } = getActiveDateRange();
   if (!from || !to) {
     showError('اختر تاريخ البداية والنهاية');
     return;
   }
 
-  const params = new URLSearchParams({ from, to });
+  const params = new URLSearchParams({ from, to, sync: withSync ? 'true' : 'false' });
   state.deliveries = await api(`/api/admin/deliveries?${params.toString()}`);
   renderDeliveries();
   updateRangeUi();
@@ -851,15 +863,7 @@ async function refreshCurrentTab() {
   setLoading(true);
   showError('');
   try {
-    if (state.currentTab === 'overview' || state.currentTab === 'products' || state.currentTab === 'accounting') {
-      await loadMetrics();
-    }
-    if (state.currentTab === 'orders') {
-      await runDhdSync();
-      await loadOrders();
-    }
-    if (state.currentTab === 'deliveries') await loadDeliveries();
-    if (state.currentTab === 'costs') await loadProducts();
+    await refreshActiveTabData({ syncDhd: false });
   } catch (err) {
     showError(err.message || 'Failed to load data');
   } finally {
@@ -871,13 +875,22 @@ async function refreshAll() {
   setLoading(true);
   showError('');
   try {
-    await runDhdSync();
-    await loadMetrics(false);
-    if (state.currentTab === 'orders') await loadOrders();
-    if (state.currentTab === 'deliveries') await loadDeliveries();
-    if (state.currentTab === 'costs') await loadProducts();
+    await refreshActiveTabData({ syncDhd: false });
   } catch (err) {
     showError(err.message || 'Failed to load data');
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function refreshWithDhdSync() {
+  setLoading(true);
+  showError('');
+  try {
+    await runDhdSync();
+    await refreshActiveTabData({ syncDhd: false });
+  } catch (err) {
+    showError(err.message || 'Failed to sync data');
   } finally {
     setLoading(false);
   }
@@ -890,8 +903,11 @@ async function bootstrap() {
   showError('');
   try {
     await loadStatuses();
-    await loadMetrics();
-    await loadProducts();
+    await loadMetrics(false);
+    setLoading(false);
+    await loadProducts().catch((err) => {
+      showError(err.message || 'تعذر تحميل تكاليف المنتجات');
+    });
   } catch (err) {
     showError(err.message || 'Failed to start dashboard');
   } finally {
@@ -1061,14 +1077,8 @@ $('runSyncBtn').addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = 'Syncing...';
   try {
-    const result = await runDhdSync();
-    alert(
-      `Sync OK\n` +
-      `DHD → Admin: ${result.dhd?.updated || 0} livrés/shipped mis à jour\n` +
-      `Sheet: mis à jour automatiquement si Code.gs à jour`
-    );
-    await loadMetrics();
-    await loadOrders();
+    await refreshWithDhdSync();
+    alert('Sync OK — الأرقام محدّثة');
   } catch (err) {
     showError(err.message);
   } finally {

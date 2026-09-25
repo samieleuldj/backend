@@ -18,6 +18,9 @@ MINI_CLIMA_SELL_DZD = 2900.0
 MAKEUP_BAG_PURCHASE_DZD = 2800.0
 MAKEUP_BAG_SELL_DZD = 5500.0
 
+HOOD_MAT_PURCHASE_DZD = 2200.0
+HOOD_MAT_SELL_DZD = 3900.0
+
 DEFAULT_PRODUCTS = [
     {"product_id": "thermal-massage-brace", "product_name": "جهاز تدليك حراري واهتزاز 3 في 1"},
     {"product_id": "cellulite-device", "product_name": "جهاز إزالة السيلوليت والترهلات"},
@@ -26,12 +29,14 @@ DEFAULT_PRODUCTS = [
     {"product_id": "lumbar-belt", "product_name": "حزام دعم قطني للظهر"},
     {"product_id": "car-cushion", "product_name": "وسادة مقعد السيارة"},
     {"product_id": "orthopedic-pillow", "product_name": "وسادة طبية"},
+    {"product_id": "hood-insulation-mat", "product_name": "موكات"},
 ]
 
 LAUNCH_PURCHASE_COSTS = {
     "cellulite-device": CELLULITE_PURCHASE_DZD,
     "makeup-organizer-bag": MAKEUP_BAG_PURCHASE_DZD,
     "mini-clima-geant": MINI_CLIMA_PURCHASE_DZD,
+    "hood-insulation-mat": HOOD_MAT_PURCHASE_DZD,
 }
 
 
