@@ -58,12 +58,6 @@ def validate_order_security(
     client_ip = get_client_ip(request)
     whitelisted = is_ip_whitelisted(client_ip)
 
-    if not is_mobile_user_agent(user_agent) and not whitelisted:
-        raise HTTPException(
-            status_code=403,
-            detail="الطلب متاح من الهاتف فقط. افتح confortdz.shop من هاتفك للطلب.",
-        )
-
     if delivery_type not in {"home", "office"}:
         raise HTTPException(status_code=400, detail="يرجى اختيار نوع التوصيل")
 
